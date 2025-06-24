@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 这是你需要的进度条背景色 -->
+    <color name="progress_track_color">#E0E0E0</color>
+
+    <!--
+    为了让你的 Glance Widget 能用上所有颜色，
+    我们把你 Metric 数据类里的颜色也定义在这里。
+    -->
+    <color name="metric_focus_blue">#62A7F0</color>
+    <color name="metric_completion_green">#67C23A</color>
+    <color name="metric_sleep_yellow">#E6A23C</color>
+    <color name="metric_exercise_red">#F56C6C</color>
+    <color name="metric_mood_gray">#909399</color>
+
+    <!-- 你的主题中可能已经定义了这些颜色，如果没有，可以自己定义 -->
+    <!-- 这些是 Material 3 默认主题中的一些颜色，可以作为参考 -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+</resources>

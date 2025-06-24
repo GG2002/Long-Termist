@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- 禁用 ActionBar -->
+        <item name="windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+        <!-- 设置状态栏颜色为透明或与背景一致 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- 启用动态颜色 -->
+        <item name="android:forceDarkAllowed">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/brand_blue_primary</item>
+        <item name="colorPrimaryVariant">@color/brand_blue_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/brand_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Surface colors -->
+        <item name="colorSurface">@color/light_surface</item>
+        <item name="colorOnSurface">@color/light_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/light_on_surface_variant</item>
+
+        <!-- Background color. -->
+        <item name="android:colorBackground">@color/light_surface</item>
+        <item name="colorOnBackground">@color/light_on_surface</item>
+
+        <!-- Other colors -->
+        <item name="colorOutline">@color/light_outline</item>
+    </style>
+</resources>

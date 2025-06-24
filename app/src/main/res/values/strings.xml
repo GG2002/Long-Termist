@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="every_day_widget_description">你所热爱的，是</string>
+    <string name="cancel">取消</string>
+    <string name="check">确认</string>
+    <string name="placeholder">占位符</string>
+</resources>

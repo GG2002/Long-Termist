@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector>
+    <color name="progress_track_color">#E0E0E0</color>
+</selector>

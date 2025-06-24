@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors -->
+    <color name="brand_blue_primary">#3F51B5</color>
+    <color name="brand_blue_dark">#303F9F</color>
+    <color name="brand_accent">#FF4081</color>
+
+    <!-- Neutral Colors -->
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="scrim">#80000000</color> <!-- 半透明遮罩层颜色 -->
+
+    <!-- Light Theme Specific -->
+    <color name="light_surface">#FFFFFF</color>
+    <color name="light_on_surface">#212121</color>
+    <color name="light_on_surface_variant">#757575</color>
+    <color name="light_outline">#E0E0E0</color>
+
+    <!-- Dark Theme Specific -->
+    <color name="dark_surface">#121212</color>
+    <color name="dark_on_surface">#E0E0E0</color>
+    <color name="dark_on_surface_variant">#BDBDBD</color>
+    <color name="dark_outline">#424242</color>
+
+</resources>
