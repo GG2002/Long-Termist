@@ -1,9 +1,12 @@
 package com.cyc.yearlymemoir.ui
 
+import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +15,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -26,7 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,19 +43,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.node.Ref
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
@@ -62,73 +73,139 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import com.cyc.yearlymemoir.MainActivity
-import com.cyc.yearlymemoir.utils.UniversalDate
-import com.cyc.yearlymemoir.utils.UniversalMDDateType
+import com.cyc.yearlymemoir.domain.model.UniversalDate
+import com.cyc.yearlymemoir.domain.model.UniversalMDDateType
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
+
 @Composable
-private fun StatefulDateInputTextField(
-    value: Int, // The "true", canonical integer value from the UniversalDate state
-    onValueChange: (Int) -> Unit, // Callback to update the UniversalDate when the text is a valid Int
+fun UnifiedDateInput(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    isFocused: Boolean,
     modifier: Modifier = Modifier,
     width: Int = 40,
-    isFocused: Boolean,
+    prefixStr: String? = null,
+    suffixStr: String? = null,
 ) {
-    // This is the local, temporary UI state. It can be any string.
-    var text by remember { mutableStateOf(value.toString()) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    // This effect ensures that if the date is changed by *another* input field,
-    // our text field updates to reflect the new canonical value.
+    // 内部状态
+    var inputState by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = if (prefixStr == null) value.toString()
+                    .padStart(2, '0') else value.toString(),
+                selection = TextRange(value.toString().length)
+            )
+        )
+    }
+
+    // 状态同步
     LaunchedEffect(value) {
-        if (text.toIntOrNull() != value) {
-            text = value.toString()
+        if (inputState.text.toIntOrNull() != value) {
+            val newText = value.toString()
+            inputState = TextFieldValue(
+                text = newText,
+                selection = TextRange(newText.length)
+            )
         }
     }
 
-    val textColor by animateFloatAsState(
+    val contentAlpha by animateFloatAsState(
         targetValue = if (isFocused) 1f else 0.6f,
-        label = "textColor"
+        label = "alpha"
     )
 
-    BasicTextField(
-        value = text, // Bind to the local string state
-        onValueChange = { newText ->
-            // 1. Update the local state immediately. The user sees what they type.
-            text = newText
-            // 2. Try to parse it.
-            val newInt = newText.toIntOrNull()
-            if (newInt != null) {
-                // 3. If parsing is successful, call the main callback to update the global state.
-                onValueChange(newInt)
+    // 根容器
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        // --- 1. 底层视觉与输入 (傀儡层) ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (prefixStr != null) {
+                Text(
+                    text = prefixStr,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                    modifier = Modifier.padding(end = 4.dp)
+                )
             }
-        },
-        enabled = isFocused,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier.width(width.dp),
-        textStyle = TextStyle(
-            fontSize = 28.sp,
-            textAlign = TextAlign.Right,
-            color = colorScheme.primary.copy(alpha = textColor)
-        ),
-        singleLine = true,
-        cursorBrush = SolidColor(colorScheme.primary)
-    )
-}
 
-// A helper for static text like "月", "日"
-@Composable
-private fun DateLabel(text: String, isFocused: Boolean) {
-    val textColor by animateFloatAsState(targetValue = if (isFocused) 1f else 0.6f)
-    Text(
-        text = text,
-        fontSize = 18.sp,
-        fontWeight = FontWeight.Bold,
-        color = colorScheme.onSurface.copy(alpha = textColor),
-        modifier = Modifier.padding(start = 4.dp),
-    )
+            BasicTextField(
+                value = inputState,
+                onValueChange = { newValue ->
+                    inputState = newValue
+                    val newInt = newValue.text.toIntOrNull()
+                    if (newInt != null) {
+                        onValueChange(newInt)
+                    }
+                },
+                modifier = Modifier
+                    .width(width.dp)
+                    .focusRequester(focusRequester)
+                    // 核心技巧：虽然我们需要它能输入，但我们不想让它处理任何触摸
+                    // 这里不需要做 pointerInput 拦截，因为上面的 Spacer 会物理隔绝它
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                            // 兜底：只要获得焦点，永远锁死光标在最后
+                            inputState =
+                                inputState.copy(selection = TextRange(inputState.text.length))
+                        }
+                    },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                textStyle = TextStyle(
+                    fontSize = 28.sp,
+                    textAlign = TextAlign.Right,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha)
+                ),
+                singleLine = true,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
+            )
+
+            if (suffixStr != null) {
+                Text(
+                    text = suffixStr,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
+
+        // --- 2. 顶层交互 (控制层) ---
+        // 这是一个“隐形按钮”，因为写在 Row 后面，所以它在 Z 轴的最上层。
+        // 它完全挡住了下面 Row 里的输入框和文字，所有的点击都由它接管。
+        Spacer(
+            modifier = Modifier
+                .matchParentSize()
+                .background(Color.Transparent) // 必须设置背景 (即使透明) 以响应点击
+                .clickable(
+                    // 使用 clickable 而不是 detectTapGestures
+                    // clickable 对“轻微手指抖动”有容错处理，点击成功率远高于手势检测
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null // 无水波纹，如需反馈可去掉这行
+                ) {
+                    // 1. 强制夺取焦点
+                    focusRequester.requestFocus()
+
+                    // 2. 强制修正光标位置（即使原本已经是焦点状态）
+                    inputState = inputState.copy(selection = TextRange(inputState.text.length))
+
+                    // 3. 强制弹出键盘
+                    keyboardController?.show()
+                }
+        )
+    }
 }
 
 
@@ -137,7 +214,7 @@ private fun DateLabel(text: String, isFocused: Boolean) {
  */
 @Composable
 fun UniversalDatePicker(
-    initialDate: UniversalDate,
+    initialDate: UniversalDate = UniversalDate.today(),
     onDateChanged: (UniversalDate) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -157,22 +234,22 @@ fun UniversalDatePicker(
         }
     }
 
+    // 起始阶段先 scroll 至传入的初始日期类型
+    LaunchedEffect(Unit) {
+        val initialIndex = initialDate.getMDDateType()
+        listState.scrollToItem(initialIndex)
+    }
+    // 随滚动触发
     LaunchedEffect(listState.isScrollInProgress) {
         if (!listState.isScrollInProgress) {
-            // 1. Animate scroll to snap to the center
             listState.animateScrollToItem(centeredItemIndex)
 
-            // 2. Based on the final centered item, update the UniversalDate object
-            //    to reflect the selected *type*.
             if (centeredItemIndex != initialDate.getMDDateType()) {
                 val (newYear, newMdDate) = when (centeredItemIndex) {
-                    0 -> Pair(initialDate.getSolarYear(), initialDate.asMonthDay())
-                    1 -> Pair(initialDate.getLunarYear(), initialDate.asLunarDate())
-                    2 -> Pair(initialDate.getSolarYear(), initialDate.asMonthWeekday())
-                    else -> Pair(
-                        initialDate.getSolarYear(),
-                        initialDate.asMonthDay()
-                    ) // Safe default
+                    0 -> initialDate.asLunarDate()
+                    1 -> initialDate.asMonthDay()
+                    2 -> initialDate.asMonthWeekday()
+                    else -> initialDate.asMonthDay()
                 }
                 onDateChanged(UniversalDate(newYear, newMdDate))
             }
@@ -182,51 +259,35 @@ fun UniversalDatePicker(
     val itemHeight = 30.dp
     val containerHeight = itemHeight * 3
 
-    LaunchedEffect(Unit) {
-        val initialIndex = initialDate.getMDDateType()
-        // Use scrollToItem for an immediate jump without animation on init.
-        listState.scrollToItem(initialIndex)
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // Master Year Input
         Row(
             modifier = Modifier
-                .padding(top = 100.dp)
-                .height(containerHeight + 40.dp),
-            verticalAlignment = Alignment.Bottom
+                .height(containerHeight),
+            verticalAlignment = Alignment.Top
         ) {
             Column(
                 modifier = Modifier
                     .width(100.dp)
-                    .padding(bottom = itemHeight),
+                    .padding(top = itemHeight),
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 val (历法, year) = when (initialDate.getMDDateType()) {
-                    0, 2 -> {
-                        Pair("公历", initialDate.getSolarYear())
+                    0 -> {
+                        Pair("农历", initialDate.getLunarYear())
                     }
 
-                    1 -> {
-                        Pair("农历", initialDate.getLunarYear())
+                    1, 2 -> {
+                        Pair("公历", initialDate.getSolarYear())
                     }
 
                     else -> {
                         Pair("公历", initialDate.getSolarYear())
                     }
                 }
-                Text(
-                    历法,
-                    style = typography.titleLarge.copy(
-                        fontSize = 29.sp,
-                        color = colorScheme.onSurface
-                    )
-                )
                 Row(modifier = Modifier.height(itemHeight), verticalAlignment = Alignment.Bottom) {
-                    StatefulDateInputTextField(
+                    UnifiedDateInput(
                         value = year,
                         onValueChange = { newYear ->
                             onDateChanged(
@@ -237,15 +298,31 @@ fun UniversalDatePicker(
                             )
                         },
                         width = 70,
-                        isFocused = true
+                        isFocused = true,
+                        suffixStr = "年",
                     )
-                    DateLabel("年", true)
                 }
+                Text(
+                    历法,
+                    style = typography.labelLarge.copy(
+                        fontSize = 16.sp,
+                        color = colorScheme.onSurface
+                    )
+                )
+            }
+            val consumeAllScrollEvents = object : NestedScrollConnection {
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset = available
             }
             // The picker
             LazyColumn(
                 state = listState,
-                modifier = Modifier.height(containerHeight),
+                modifier = Modifier
+                    .height(containerHeight)
+                    .nestedScroll(consumeAllScrollEvents),
                 contentPadding = PaddingValues(vertical = itemHeight) // This padding centers the first and last items
             ) {
                 items(3) { index ->
@@ -256,19 +333,19 @@ fun UniversalDatePicker(
                     Box(
                         modifier = Modifier
                             .height(itemHeight)
-                            .fillMaxWidth()
+                            .width(200.dp)
                             .scale(scale)
                             .alpha(alpha),
                         contentAlignment = Alignment.Center
                     ) {
                         when (index) {
-                            0 -> MonthDayRow(
+                            0 -> LunarDateRow(
                                 date = initialDate,
                                 onDateChanged = onDateChanged,
                                 isFocused = isFocused
                             )
 
-                            1 -> LunarDateRow(
+                            1 -> MonthDayRow(
                                 date = initialDate,
                                 onDateChanged = onDateChanged,
                                 isFocused = isFocused
@@ -289,14 +366,14 @@ fun UniversalDatePicker(
 }
 
 
-// Row 1: M-D (e.g., 6月13日)
+// Row 1: M-D (e.g., 6 月 13 日)
 @Composable
 fun MonthDayRow(
     date: UniversalDate,
     onDateChanged: (UniversalDate) -> Unit,
     isFocused: Boolean
 ) {
-    val mdDate = date.asMonthDay()
+    val (year, mdDate) = date.asMonthDay()
 
     // This logic now only deals with valid integers.
     val onValueChange = { newMonth: Int, newDay: Int ->
@@ -304,32 +381,31 @@ fun MonthDayRow(
             if (newMonth < 0 || newDay < 0) {
                 throw Exception("not allowed Month or Day integer")
             }
-            LocalDate.of(date.getSolarYear(), newMonth, newDay)
+            LocalDate.of(year, newMonth, newDay)
             val newMdDate = UniversalMDDateType.MonthDay(newMonth, newDay)
-            onDateChanged(UniversalDate(date.getSolarYear(), newMdDate))
+            onDateChanged(UniversalDate(year, newMdDate))
         } catch (e: Exception) {
             // Invalid date (e.g., Feb 30), do nothing
         }
     }
 
     Row(verticalAlignment = Alignment.Bottom) {
-        // Use the new Stateful component
-        StatefulDateInputTextField(
-            value = mdDate.month, // Pass the Int value
-            onValueChange = { newMonth -> // Receive a valid Int
+        UnifiedDateInput(
+            value = mdDate.month,
+            onValueChange = { newMonth ->
                 onValueChange(newMonth, mdDate.day)
             },
             isFocused = isFocused,
+            suffixStr = "月"
         )
-        DateLabel("月", isFocused)
-        StatefulDateInputTextField(
-            value = mdDate.day, // Pass the Int value
-            onValueChange = { newDay -> // Receive a valid Int
+        UnifiedDateInput(
+            value = mdDate.day,
+            onValueChange = { newDay ->
                 onValueChange(mdDate.month, newDay)
             },
-            isFocused = isFocused
+            isFocused = isFocused,
+            suffixStr = "日"
         )
-        DateLabel("日", isFocused)
     }
 }
 
@@ -350,15 +426,14 @@ private fun dayOfWeekToChinese(weekday: DayOfWeek): String {
 }
 
 
-// Row 2: M-W-D (e.g., 5月第2个周日)
+// Row 2: M-W-D (e.g., 5 月第 2 个周日)
 @Composable
 fun MonthWeekdayRow(
     date: UniversalDate,
     onDateChanged: (UniversalDate) -> Unit,
     isFocused: Boolean
 ) {
-    val mwDate = date.asMonthWeekday()
-    println("mwDate $mwDate")
+    val (year, mwDate) = date.asMonthWeekday()
 
     var weekdayItemHightDP by remember { mutableIntStateOf(30) }
     val WEEKDAY_ITEM_HEIGHT_PIXEL =
@@ -395,8 +470,8 @@ fun MonthWeekdayRow(
                 throw Exception("not allowed Month or WeekOrder integer")
             }
             val newMdDate = UniversalMDDateType.MonthWeekday(newMonth, newWeekOrder, newWeekday)
-            UniversalDate(date.getSolarYear(), newMdDate).asMonthDay()
-            onDateChanged(UniversalDate(date.getSolarYear(), newMdDate))
+            UniversalDate(year, newMdDate).asMonthDay()
+            onDateChanged(UniversalDate(year, newMdDate))
         } catch (e: Exception) {
             // Invalid combination
         }
@@ -415,23 +490,24 @@ fun MonthWeekdayRow(
     }
 
     Row(verticalAlignment = Alignment.Bottom) {
-        StatefulDateInputTextField(
+        UnifiedDateInput(
             value = mwDate.month,
             onValueChange = { newMonth ->
                 onValueChange(newMonth, mwDate.weekOrder, mwDate.weekday)
             },
-            isFocused = isFocused
+            isFocused = isFocused,
+            suffixStr = "月 "
         )
-        DateLabel("月 第", isFocused)
-        StatefulDateInputTextField(
+        UnifiedDateInput(
             value = mwDate.weekOrder,
             onValueChange = { newWeekOrder ->
                 onValueChange(mwDate.month, newWeekOrder, mwDate.weekday)
             },
+            isFocused = isFocused,
             width = 23,
-            isFocused = isFocused
+            prefixStr = "第",
+            suffixStr = "个 "
         )
-        DateLabel("个", isFocused)
 
         Spacer(modifier = Modifier.width(4.dp))
         val textColor by animateFloatAsState(
@@ -498,7 +574,7 @@ fun MonthWeekdayRow(
                 Box(
                     modifier = Modifier
                         .width(IntrinsicSize.Max)
-                        .height(WEEKDAY_PICKER_TOTAL_HEIGHT_DP.dp)
+                        .height((WEEKDAY_PICKER_TOTAL_HEIGHT_DP + 10).dp)
                         .background(colorScheme.background, RoundedCornerShape(12.dp))
                         .border(
                             1.dp,
@@ -507,9 +583,11 @@ fun MonthWeekdayRow(
                         )
                         .clip(RoundedCornerShape(12.dp))
                 ) {
-                    Box(modifier = Modifier.offset {
-                        IntOffset(0, pickerOffsetY.roundToInt())
-                    }) {
+                    Box(modifier = Modifier
+                        .offset {
+                            IntOffset(0, pickerOffsetY.roundToInt())
+                        }
+                        .padding(4.dp)) {
                         Column(
                             modifier = Modifier,
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -552,6 +630,19 @@ fun MonthWeekdayRow(
 }
 
 
+// A helper for static text like "月", "日"
+@Composable
+private fun DateLabel(text: String, isFocused: Boolean) {
+    val textColor by animateFloatAsState(targetValue = if (isFocused) 1f else 0.6f)
+    Text(
+        text = text,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        color = colorScheme.onSurface.copy(alpha = textColor),
+        modifier = Modifier.padding(start = 4.dp),
+    )
+}
+
 // Row 3: Lunar (e.g., 四月初五)
 @Composable
 fun LunarDateRow(
@@ -559,7 +650,7 @@ fun LunarDateRow(
     onDateChanged: (UniversalDate) -> Unit,
     isFocused: Boolean
 ) {
-    val lDate = date.asLunarDate()
+    val (year, lDate) = date.asLunarDate()
 
     val onValueChange = { newMonth: Int, newDay: Int, newIsLeap: Boolean ->
         try {
@@ -567,39 +658,41 @@ fun LunarDateRow(
                 throw Exception("not allowed Month or Day integer")
             }
             val newMdDate = UniversalMDDateType.LunarDate(newMonth, newDay, newIsLeap)
-            UniversalDate(date.getLunarYear(), newMdDate).asMonthDay()
-            onDateChanged(UniversalDate(date.getLunarYear(), newMdDate))
+            UniversalDate(year, newMdDate).asMonthDay()
+            onDateChanged(UniversalDate(year, newMdDate))
         } catch (e: Exception) {
             // Invalid lunar date
         }
     }
 
     Row(verticalAlignment = Alignment.Bottom) {
-        DateLabel("闰月", isFocused)
-        Switch(
-            checked = lDate.isLeap,
-            onCheckedChange = { newIsLeap ->
-                onValueChange(lDate.month, lDate.day, newIsLeap)
-            },
-            enabled = isFocused,
-            modifier = Modifier.scale(0.7f)
-        )
-        StatefulDateInputTextField(
+        if (lDate.isLeap) {
+            DateLabel("闰月", isFocused)
+//            Switch(
+//                checked = lDate.isLeap,
+//                onCheckedChange = { newIsLeap ->
+//                    onValueChange(lDate.month, lDate.day, newIsLeap)
+//                },
+//                enabled = isFocused,
+//                modifier = Modifier.scale(0.7f)
+//            )
+        }
+        UnifiedDateInput(
             value = lDate.month,
             onValueChange = { newMonth ->
                 onValueChange(newMonth, lDate.day, lDate.isLeap)
             },
-            isFocused = isFocused
+            isFocused = isFocused,
+            suffixStr = "月"
         )
-        DateLabel("月", isFocused)
-        StatefulDateInputTextField(
+        UnifiedDateInput(
             value = lDate.day,
             onValueChange = { newDay ->
                 onValueChange(lDate.month, newDay, lDate.isLeap)
             },
-            isFocused = isFocused
+            isFocused = isFocused,
+            suffixStr = "日"
         )
-        DateLabel("日", isFocused)
     }
 }
 
@@ -611,7 +704,7 @@ fun UniversalDatePickerPreview() {
             mutableStateOf(
                 UniversalDate(
                     2025,
-                    UniversalMDDateType.MonthDay(12, 22)
+                    UniversalMDDateType.MonthDay(12, 2)
                 )
             )
         }
@@ -621,6 +714,8 @@ fun UniversalDatePickerPreview() {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
             UniversalDatePicker(
                 initialDate = date,
                 onDateChanged = { newDate -> date = newDate }
@@ -628,7 +723,7 @@ fun UniversalDatePickerPreview() {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
 
-            Text("当前选中日期:", style = typography.titleLarge)
+            Text("当前选中日期：", style = typography.titleLarge)
             Text(date.toChineseString(), fontSize = 20.sp)
         }
     }
