@@ -1,5 +1,7 @@
 package com.cyc.yearlymemoir.utils
 
+import com.cyc.yearlymemoir.domain.model.UniversalDateType
+import com.cyc.yearlymemoir.domain.model.UniversalMDDateType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 

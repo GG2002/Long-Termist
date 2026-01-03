@@ -3,7 +3,7 @@
     android:description="@string/every_day_widget_description"
     android:minWidth="250dp"
     android:minHeight="180dp"
-    android:previewImage="@drawable/widget_preview"
+    android:previewImage="@drawable/chi_avatar"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="5"
     android:targetCellHeight="3"

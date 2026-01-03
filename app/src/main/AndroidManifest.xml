@@ -3,15 +3,21 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- 悬浮窗 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 通知栏前台服务 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:icon="@drawable/widget_preview"
-        android:label="Yearly Memo"
+        android:name=".MainApplication"
+        android:icon="@drawable/app_icon"
+        android:label="Long Termist"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
@@ -24,12 +30,18 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".venassists.WXFloatingWindowService" />
+        <!-- 微信悬浮窗 -->
+        <service android:name=".services.WXFloatingWindowService" />
+        <!-- 悬浮窗需要通知栏才能使用 -->
         <service
-            android:name=".venassists.OverlayConfirmService"
+            android:name=".services.OverlayConfirmService"
             android:exported="false"
             android:foregroundServiceType="specialUse" />
-
+        <service
+            android:name=".services.RemindMeService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
         <service
             android:name="com.ven.assists.service.AssistsService"
             android:enabled="true"

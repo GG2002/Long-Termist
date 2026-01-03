@@ -8,8 +8,12 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import com.cyc.yearlymemoir.MainActivity
-import com.cyc.yearlymemoir.model.BalanceChannelType
-import com.cyc.yearlymemoir.model.DatastoreInit
+import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.domain.model.UniversalDate
+import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
+import com.cyc.yearlymemoir.domain.repository.DatastoreInit
+import com.cyc.yearlymemoir.services.OverlayConfirmManager
+import com.cyc.yearlymemoir.services.WXFloatingWindowService
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -47,6 +51,7 @@ class GetTodayBalanceStepImpl : StepImpl() {
 
     private var context: Context = MainActivity.appContext
     private var ds: DatastoreInit = MainActivity.ds
+    private var model = MainApplication.repository
     private var deferred: CompletableDeferred<String>? = null
 
     fun restartApp(context: Context, packageName: String) {
@@ -152,34 +157,70 @@ class GetTodayBalanceStepImpl : StepImpl() {
             tabs.getOrNull(1)?.click()
             return@next Step.get(GetBalanceStep.GET_ZFB_BALANCE.ordinal)
         }.next(GetBalanceStep.GET_ZFB_BALANCE.ordinal) {
-            // 获取余额
-            val 获取余额文字: () -> String = {
-                val 余额 =
-                    AssistsCore.findById("com.alipay.android.widget.fortunehome:id/fh_tv_assets_amount_num")
-                if (余额.isEmpty()) {
-                    throw IllegalStateException("无法获取支付宝余额")
-                }
-                val 余额文字 = 余额[0].txt()
-                余额文字
-            }
-            var 余额文字 = 获取余额文字()
-            // 余额被隐藏，要点击小眼睛
-            var hidden = 余额文字.startsWith("**")
-            if (hidden) {
-                AssistsCore.findById("com.alipay.android.widget.fortunehome:id/hide_layout")[0].click()
-                delay(2 * 1000)
-                余额文字 = 获取余额文字()
-            }
-            var balance = 余额文字.replace(",", "").toDouble()
-            balance = "%.2f".format(balance).toDouble()
-            // 假如之前余额被隐藏，获取完余额后恢复原状
-            if (hidden) {
-                AssistsCore.findById("com.alipay.android.widget.fortunehome:id/hide_layout")[0].click()
-            }
+            var retryNum = 3
+            while (true) {
+                try {
+                    // 获取余额
+                    val 获取余额文字: () -> String = {
+                        val 余额 =
+                            AssistsCore.findById("com.alipay.android.widget.fortunehome:id/fh_tv_assets_amount_num")
+                        if (余额.isEmpty()) {
+                            throw IllegalStateException("无法获取支付宝余额")
+                        }
+                        val 余额文字 = 余额[0].txt()
+                        余额文字
+                    }
+                    var 余额文字 = 获取余额文字()
+                    // 余额被隐藏，要点击小眼睛
+                    var hidden = 余额文字.startsWith("**")
+                    if (hidden) {
+                        AssistsCore.findById("com.alipay.android.widget.fortunehome:id/hide_layout")[0].click()
+                        delay(2 * 1000)
+                        余额文字 = 获取余额文字()
+                    }
 
-            Log.i("支付宝自动化", "支付宝余额：$balance")
-            ds.setTodayBalance(BalanceChannelType.ZFB, balance)
-            Log.i("支付宝自动化", "获取支付宝余额完毕")
+                    var balance: Double = Double.NaN
+                    for (attempt in 1..5) {
+                        var currentBalance = 余额文字.replace(",", "").toDouble()
+                        currentBalance = "%.2f".format(currentBalance).toDouble()
+                        Log.d(
+                            "支付宝自动化",
+                            "第 $attempt 次尝试: 当前余额 = $currentBalance, 上次余额 = $balance"
+                        )
+
+                        if (currentBalance.isFinite() && currentBalance == balance) {
+                            Log.i("支付宝自动化", "余额已稳定: $currentBalance")
+                            balance = currentBalance // 余额稳定，返回结果并结束函数
+                            break
+                        }
+                        balance = currentBalance
+
+                        delay(500)
+                        余额文字 = 获取余额文字()
+                    }
+                    // 假如之前余额被隐藏，获取完余额后恢复原状
+                    if (hidden) {
+                        AssistsCore.findById("com.alipay.android.widget.fortunehome:id/hide_layout")[0].click()
+                    }
+                    Log.i("支付宝自动化", "支付宝余额：$balance，${UniversalDate.today()}")
+                    ds.setTodayBalance(BalanceChannelType.ZFB, balance)
+                    model.insertOrUpdateDetail(
+                        "支付宝余额",
+                        balance.toString(),
+                        UniversalDate.today(),
+                        false
+                    )
+                    Log.i("支付宝自动化", "获取支付宝余额完毕")
+                    break
+                } catch (e: Exception) {
+                    retryNum--
+                    Log.e("支付宝自动化", e.toString() + "，剩余 $retryNum 次重试机会")
+                    if (retryNum == 0) {
+                        throw IllegalStateException("无法获取支付宝余额")
+                    }
+                    delay(2000)
+                }
+            }
             return@next Step.get(GetBalanceStep.RESTART_WX.ordinal)
         }.
             // 获取微信余额
@@ -396,9 +437,9 @@ class GetTodayBalanceStepImpl : StepImpl() {
                         ds.putInt("wx_零钱_bottom", tmp.bottom)
                     } else {
                         Log.d("ConfirmTest", "用户已取消，重新识图。")
-                        context.stopFloatingService()
                         return@next Step.repeat
                     }
+                    context.stopFloatingService()
                 }
                 tmp
             } else {
@@ -461,6 +502,7 @@ class GetTodayBalanceStepImpl : StepImpl() {
 
             Log.i("微信自动化", "微信余额：$balance")
             ds.setTodayBalance(BalanceChannelType.WX, balance)
+            model.insertOrUpdateDetail("微信余额", balance.toString(), UniversalDate.today(), false)
             Log.i("微信自动化", "获取微信余额完毕")
             return@next Step.get(GetBalanceStep.RESTART_YSF.ordinal)
         }.
@@ -523,9 +565,24 @@ class GetTodayBalanceStepImpl : StepImpl() {
 
             Log.i("云闪付自动化", "云闪付余额：$balance")
             ds.setTodayBalance(BalanceChannelType.YSF, balance)
+            model.insertOrUpdateDetail(
+                "云闪付余额",
+                balance.toString(),
+                UniversalDate.today(),
+                false
+            )
             Log.i("云闪付自动化", "获取云闪付余额完毕")
             return@next Step.get(GetBalanceStep.RETURN_APP.ordinal, delay = 0)
         }.next(GetBalanceStep.RETURN_APP.ordinal) {
+            val sumBalance = ds.getTodayBalance(BalanceChannelType.ALL)
+            model.insertOrUpdateDetail(
+                "总余额",
+                sumBalance.toString(),
+                UniversalDate.today(),
+                false
+            )
+            val currentTimeSeconds = System.currentTimeMillis().toDouble()
+            ds.putDouble("last_update_time", currentTimeSeconds)
             deferred?.complete("fianl complete")
                 ?: Log.e("自动化", "op.data 不是 CompletableDeferred<String> 类型")
             val selfPackageName = context.packageName

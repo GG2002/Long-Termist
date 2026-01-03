@@ -52,9 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import com.cyc.yearlymemoir.MainActivity
-import com.cyc.yearlymemoir.WorkScheduler
 import com.cyc.yearlymemoir.utils.formatDateComponents
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -178,7 +176,6 @@ fun DataPrecalculator(
         todayIdx = todayIndex
         groupedItems = allItems.chunked(3)
 
-        delay(1000)
         startCalculation = true
     }
 
@@ -354,8 +351,8 @@ fun YearlyCalendar(
         containerColor = colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                modifier = Modifier.offset(y = -100.dp),
-                onClick = { WorkScheduler.scheduleNowForTest(MainActivity.appContext) },
+                modifier = Modifier.offset(y = (-100).dp),
+                onClick = { /* */ },
                 // 使用 colorScheme.primary 作为 FAB 的背景色（主强调色）
                 containerColor = colorScheme.primary,
                 // 使用 colorScheme.onPrimary 作为 FAB 内容的颜色，确保与背景对比度

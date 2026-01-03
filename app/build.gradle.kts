@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+
+    kotlin("plugin.serialization") version "1.9.22"
+    id("kotlin-kapt")
 }
 
 android {
@@ -10,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.cyc.yearlymemoir"
-        minSdk = 32
+        minSdk = 28
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -54,11 +57,11 @@ android {
         resources {
             // 注意：sqlite-jdbc 可能没有专门的 android 版本，这种方法可能导致崩溃
             // 所以全排除然后依赖系统库是更安全的做法（如果还能跑的话）
-            excludes += "/org/sqlite/native/Windows/**"
-            excludes += "/org/sqlite/native/Mac/**"
-            // 同时，JDBC 驱动还可能带有一些元数据文件，也可以一并排除
-            excludes += "META-INF/LICENSE"
-            excludes += "META-INF/NOTICE"
+//            excludes += "/org/sqlite/native/Windows/**"
+//            excludes += "/org/sqlite/native/Mac/**"
+//            // 同时，JDBC 驱动还可能带有一些元数据文件，也可以一并排除
+//            excludes += "META-INF/LICENSE"
+//            excludes += "META-INF/NOTICE"
         }
     }
 }
@@ -82,10 +85,21 @@ dependencies {
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.navigation.compose.jvmstubs)
+    implementation(libs.androidx.room.common.jvm)
+    implementation(libs.androidx.room.runtime.android)
+
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
+    kapt("androidx.room:room-compiler:2.7.2")
+    implementation(libs.androidx.junit.ktx)
     debugImplementation("androidx.compose.ui:ui-tooling")
+    // datastore 数据持久化组件
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 
     // 安卓小卡片
     implementation("androidx.glance:glance-appwidget:1.1.1")
+    // 定时任务
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // 无障碍模式工具库
     implementation("com.github.ven-coder.Assists:assists-base:v3.2.17")
@@ -94,8 +108,6 @@ dependencies {
     // implementation("com.google.mlkit:text-recognition:16.0.1")
     // To recognize Chinese script
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
-    // datastore 数据持久化组件
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
 
     // 图表组件
     implementation("io.github.ehsannarmani:compose-charts:0.1.7")
@@ -103,18 +115,15 @@ dependencies {
     implementation("cn.6tail:lunar:1.6.3")
     // 序列化
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
-    // 定时任务
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-    implementation("org.jetbrains.exposed:exposed-core:0.40.1")
-    implementation("org.jetbrains.exposed:exposed-dao:0.40.1")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.40.1")
-    // SQLite JDBC driver
-    implementation("org.xerial:sqlite-jdbc:3.46.0.0")
-    // MySQL JDBC driver
-    implementation("mysql:mysql-connector-java:8.0.33")
+    // OkHttp for making HTTP requests
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
+    // Kotlin Coroutines for testing
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    // Optional - Truth library for more readable assertions
+    androidTestImplementation(libs.truth)
 }
