@@ -9,9 +9,10 @@ import android.util.Log
 import com.cyc.yearlymemoir.data.local.db.AppDatabase
 import com.cyc.yearlymemoir.data.repository.HybridYearlyMemoirRepository
 import com.cyc.yearlymemoir.data.repository.LocalYearlyMemoirRepository
-import com.cyc.yearlymemoir.data.repository.TidbCloudYearlyMemoirRepositoryImpl
 import com.cyc.yearlymemoir.data.tidbcloud.db.DbClient
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
+import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.WX_ENABLED
+import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.ZFB_ENABLED
 import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,13 +48,20 @@ class MainApplication : Application() {
         val localRepo = LocalYearlyMemoirRepository(
             database.detailDao(),
             database.fieldDao(),
-//            database.groupDao()
+            database.balanceDao(),
+            database.transactionDao(),
         )
         // val cloudRepo = TidbCloudYearlyMemoirRepositoryImpl(
         //     dbClient.detailDao,
         //     dbClient.fieldDao
         // )
         ds = DatastoreInit(applicationContext)
+        if (ds.getString(WX_ENABLED).isNullOrBlank()) {
+            ds.putString(WX_ENABLED, "true")
+        }
+        if (ds.getString(ZFB_ENABLED).isNullOrBlank()) {
+            ds.putString(ZFB_ENABLED, "true")
+        }
         // repository = HybridYearlyMemoirRepository(
         //     localRepo, cloudRepo, ds
         // )

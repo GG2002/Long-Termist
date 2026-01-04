@@ -10,10 +10,18 @@ import com.cyc.yearlymemoir.domain.model.Group
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.repository.TimePeriod
 import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
+import com.cyc.yearlymemoir.data.local.dao.BalanceDao
+import com.cyc.yearlymemoir.data.local.dao.TransactionDao
+import com.cyc.yearlymemoir.data.local.entity.toDomainModel
+import com.cyc.yearlymemoir.data.local.entity.toEntity
+import com.cyc.yearlymemoir.domain.model.BalanceRecord
+import com.cyc.yearlymemoir.domain.model.TransactionRecord
 
 class LocalYearlyMemoirRepository(
     private val detailDao: DetailDao,
-    private val fieldDao: FieldDao
+    private val fieldDao: FieldDao,
+    private val balanceDao: BalanceDao,
+    private val transactionDao: TransactionDao
 ) : YearlyMemoirRepository {
     override suspend fun getAllDetails(): List<Detail> {
         return detailDao.getAllDetails().map { it.toDomainModel() }
@@ -93,5 +101,59 @@ class LocalYearlyMemoirRepository(
 
     override suspend fun getAllGroupsWithFields(): Map<Group, List<Field>> {
         TODO("Not yet implemented")
+    }
+
+    // Balance APIs
+    override suspend fun upsertBalance(balance: BalanceRecord) {
+        balanceDao.upsert(balance.toEntity())
+    }
+
+    override suspend fun getAllBalances(): List<BalanceRecord> {
+        return balanceDao.getAllBalances().map { it.toDomainModel() }
+    }
+
+    override suspend fun getBalancesByDate(date: String): List<BalanceRecord> {
+        return balanceDao.getBalancesByDate(date).map { it.toDomainModel() }
+    }
+
+    override suspend fun getBalancesBySource(sourceType: String): List<BalanceRecord> {
+        return balanceDao.getBalancesBySource(sourceType).map { it.toDomainModel() }
+    }
+
+    // Transaction APIs
+    override suspend fun upsertTransaction(record: TransactionRecord) {
+        transactionDao.upsert(record.toEntity())
+    }
+
+    override suspend fun getAllIncomes(): List<TransactionRecord> {
+        return transactionDao.getAllIncomes().map { it.toDomainModel() }
+    }
+
+    override suspend fun getAllExpenses(): List<TransactionRecord> {
+        return transactionDao.getAllExpenses().map { it.toDomainModel() }
+    }
+
+    override suspend fun getIncomesByDate(date: String): List<TransactionRecord> {
+        return transactionDao.getIncomesByDate(date).map { it.toDomainModel() }
+    }
+
+    override suspend fun getExpensesByDate(date: String): List<TransactionRecord> {
+        return transactionDao.getExpensesByDate(date).map { it.toDomainModel() }
+    }
+
+    override suspend fun getIncomesByTag(tag: String): List<TransactionRecord> {
+        return transactionDao.getIncomesByTag(tag).map { it.toDomainModel() }
+    }
+
+    override suspend fun getExpensesByTag(tag: String): List<TransactionRecord> {
+        return transactionDao.getExpensesByTag(tag).map { it.toDomainModel() }
+    }
+
+    override suspend fun getIncomeTags(): List<String> {
+        return transactionDao.getIncomeTags()
+    }
+
+    override suspend fun getExpenseTags(): List<String> {
+        return transactionDao.getExpenseTags()
     }
 }

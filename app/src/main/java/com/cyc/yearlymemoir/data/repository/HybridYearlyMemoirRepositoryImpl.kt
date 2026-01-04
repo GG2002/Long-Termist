@@ -2,9 +2,11 @@ package com.cyc.yearlymemoir.data.repository
 
 
 import android.util.Log
+import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.model.Detail
 import com.cyc.yearlymemoir.domain.model.Field
 import com.cyc.yearlymemoir.domain.model.Group
+import com.cyc.yearlymemoir.domain.model.TransactionRecord
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.model.UniversalMDDateType
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
@@ -170,4 +172,22 @@ class HybridYearlyMemoirRepository(
         val localGroups = localRepository.getAllGroupsWithFields()
         return localGroups
     }
+
+    // Balance APIs
+    override suspend fun upsertBalance(balance: BalanceRecord){}
+    override suspend fun getAllBalances(): List<BalanceRecord>{ return emptyList() }
+    override suspend fun getBalancesByDate(date: String): List<BalanceRecord>{ return emptyList() }
+    override suspend fun getBalancesBySource(sourceType: String): List<BalanceRecord>{ return emptyList() }
+
+    // Transaction APIs (split income/expense)
+    override suspend fun upsertTransaction(record: TransactionRecord){}
+    override suspend fun getAllIncomes(): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getAllExpenses(): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getIncomesByDate(date: String): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getExpensesByDate(date: String): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getIncomesByTag(tag: String): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getExpensesByTag(tag: String): List<TransactionRecord>{ return emptyList() }
+    override suspend fun getIncomeTags(): List<String>{ return emptyList() }
+    override suspend fun getExpenseTags(): List<String>{ return emptyList() }
+
 }

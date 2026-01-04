@@ -6,9 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cyc.yearlymemoir.data.local.dao.DetailDao
+import com.cyc.yearlymemoir.data.local.dao.BalanceDao
+import com.cyc.yearlymemoir.data.local.dao.TransactionDao
 import com.cyc.yearlymemoir.data.local.dao.FieldDao
 import com.cyc.yearlymemoir.data.local.dao.GroupDao
 import com.cyc.yearlymemoir.data.local.entity.DetailEntity
+import com.cyc.yearlymemoir.data.local.entity.BalanceEntity
+import com.cyc.yearlymemoir.data.local.entity.TransactionEntity
 import com.cyc.yearlymemoir.data.local.entity.FieldEntity
 import com.cyc.yearlymemoir.data.local.entity.GroupEntity
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_NUM
@@ -29,7 +33,9 @@ import kotlinx.coroutines.launch
     entities = [
         DetailEntity::class,
         FieldEntity::class,
-        GroupEntity::class
+        GroupEntity::class,
+        BalanceEntity::class,
+        TransactionEntity::class
     ],
     version = 1,
     exportSchema = false
@@ -41,6 +47,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun detailDao(): DetailDao
     abstract fun fieldDao(): FieldDao
     abstract fun groupDao(): GroupDao
+    abstract fun balanceDao(): BalanceDao
+    abstract fun transactionDao(): TransactionDao
 
     // 1. 定义一个数据库回调
     private class AppDatabaseCallback(

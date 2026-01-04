@@ -9,6 +9,7 @@ import android.util.Log
 import android.widget.Toast
 import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
@@ -185,11 +186,11 @@ class GetTodayBalanceStepImpl : StepImpl() {
                         currentBalance = "%.2f".format(currentBalance).toDouble()
                         Log.d(
                             "支付宝自动化",
-                            "第 $attempt 次尝试: 当前余额 = $currentBalance, 上次余额 = $balance"
+                            "第 $attempt 次尝试：当前余额 = $currentBalance, 上次余额 = $balance"
                         )
 
                         if (currentBalance.isFinite() && currentBalance == balance) {
-                            Log.i("支付宝自动化", "余额已稳定: $currentBalance")
+                            Log.i("支付宝自动化", "余额已稳定：$currentBalance")
                             balance = currentBalance // 余额稳定，返回结果并结束函数
                             break
                         }
@@ -203,12 +204,13 @@ class GetTodayBalanceStepImpl : StepImpl() {
                         AssistsCore.findById("com.alipay.android.widget.fortunehome:id/hide_layout")[0].click()
                     }
                     Log.i("支付宝自动化", "支付宝余额：$balance，${UniversalDate.today()}")
-                    ds.setTodayBalance(BalanceChannelType.ZFB, balance)
-                    model.insertOrUpdateDetail(
-                        "支付宝余额",
-                        balance.toString(),
-                        UniversalDate.today(),
-                        false
+                    ds.updateTodayBalance(BalanceChannelType.ZFB)
+                    model.upsertBalance(
+                        BalanceRecord(
+                            sourceType = "支付宝",
+                            recordDate = getTodayString(),
+                            balance = balance,
+                        )
                     )
                     Log.i("支付宝自动化", "获取支付宝余额完毕")
                     break
@@ -501,8 +503,14 @@ class GetTodayBalanceStepImpl : StepImpl() {
             balance = "%.2f".format(balance).toDouble()
 
             Log.i("微信自动化", "微信余额：$balance")
-            ds.setTodayBalance(BalanceChannelType.WX, balance)
-            model.insertOrUpdateDetail("微信余额", balance.toString(), UniversalDate.today(), false)
+            ds.updateTodayBalance(BalanceChannelType.WX)
+            model.upsertBalance(
+                BalanceRecord(
+                    sourceType = "微信",
+                    recordDate = getTodayString(),
+                    balance = balance,
+                )
+            )
             Log.i("微信自动化", "获取微信余额完毕")
             return@next Step.get(GetBalanceStep.RESTART_YSF.ordinal)
         }.
@@ -518,69 +526,115 @@ class GetTodayBalanceStepImpl : StepImpl() {
             restartApp(context, "com.unionpay")
             return@next Step.get(GetBalanceStep.GET_YSF_BALANCE.ordinal)
         }.next(GetBalanceStep.GET_YSF_BALANCE.ordinal) {
-            var tmp = AssistsCore.findById("com.unionpay:id/tablayout")
-            var retryNum = 3
-            while (tmp.isEmpty()) {
+            // 两个版本的云闪付：
+            // 新版：com.unionpay:id/tv_tab_name -> com.unionpay:id/card_info_balance_bill_amount，点击 com.unionpay:id/card_title_eyes
+            // 旧版：com.unionpay:id/tablayout -> com.unionpay:id/tv_fortune_balance_value，点击 com.unionpay:id/iv_fortune_eye
+
+            var retryNum = 5
+            var isNewVersionUI = false
+            while (retryNum > 0) {
+                val newRoot = AssistsCore.findById("com.unionpay:id/tv_tab_name")
+                val oldRoot = AssistsCore.findById("com.unionpay:id/tablayout")
+                if (newRoot.isNotEmpty()) {
+                    isNewVersionUI = true
+                    break
+                }
+                if (oldRoot.isNotEmpty()) {
+                    isNewVersionUI = false
+                    break
+                }
                 delay(1000)
-                tmp = AssistsCore.findById("com.unionpay:id/tablayout")
                 retryNum--
-                if (retryNum == 0) {
-                    return@next Step.get(GetBalanceStep.RESTART_YSF.ordinal, delay = 0)
-                }
             }
-            // 获取余额
-            val 获取余额文字: () -> String = {
-                val 余额 = AssistsCore.findById("com.unionpay:id/tv_fortune_balance_value")
-                if (余额.isEmpty()) {
-                    throw IllegalStateException("无法获取云闪付余额")
-                }
-                val 余额文字 = 余额[0].txt()
-                余额文字
-            }
-            var 余额文字 = 获取余额文字()
-            // 余额被隐藏，要点击小眼睛
-            if (余额文字.startsWith("**")) {
-                AssistsCore.findById("com.unionpay:id/iv_fortune_eye")[0].click()
-                delay(2000)
-                余额文字 = 获取余额文字()
-            }
-            // 余额需要从不同卡里汇总加载
-            while (余额文字.startsWith("--")) {
-                delay(2000)
-                余额文字 = 获取余额文字()
-            }
-            var lastBalance: Double? = null
-            var currentBalance = 余额文字.replace(",", "").toDouble()
-            while (true) {
-                if (lastBalance != null && lastBalance == currentBalance) break
-                lastBalance = currentBalance
-                delay(1000)
-                余额文字 = 获取余额文字()
-                currentBalance = 余额文字.replace(",", "").toDouble()
+            if (retryNum == 0) {
+                return@next Step.get(GetBalanceStep.RESTART_YSF.ordinal, delay = 0)
             }
 
-            Log.i("云闪付自动化", 余额文字)
-            var balance = 余额文字.replace(",", "").toDouble()
+            var balanceStr = ""
+            if (isNewVersionUI) {
+                // 新版完整流程
+                // 获取余额
+                val 获取余额文字_新版: () -> String = {
+                    val 余额 = AssistsCore.findById("com.unionpay:id/card_info_balance_bill_amount")
+                    if (余额.isEmpty()) {
+                        throw IllegalStateException("无法获取云闪付余额")
+                    }
+                    余额[0].txt()
+                }
+
+                balanceStr = 获取余额文字_新版()
+                // 余额被隐藏，要点击小眼睛
+                if (balanceStr.startsWith("**")) {
+                    AssistsCore.findById("com.unionpay:id/card_title_eyes")[0].click()
+                    delay(2000)
+                    balanceStr = 获取余额文字_新版()
+                }
+                // 余额需要从不同卡里汇总加载
+                while (balanceStr.startsWith("--")) {
+                    delay(2000)
+                    balanceStr = 获取余额文字_新版()
+                }
+                var lastBalance: Double? = null
+                var currentBalance = balanceStr.replace(",", "").toDouble()
+                while (true) {
+                    if (lastBalance != null && lastBalance == currentBalance) break
+                    lastBalance = currentBalance
+                    delay(1000)
+                    balanceStr = 获取余额文字_新版()
+                    currentBalance = balanceStr.replace(",", "").toDouble()
+                }
+
+            } else {
+                // 旧版完整流程
+                // 获取余额
+                val 获取余额文字_旧版: () -> String = {
+                    val 余额 = AssistsCore.findById("com.unionpay:id/tv_fortune_balance_value")
+                    if (余额.isEmpty()) {
+                        throw IllegalStateException("无法获取云闪付余额")
+                    }
+                    余额[0].txt()
+                }
+
+                balanceStr = 获取余额文字_旧版()
+                // 余额被隐藏，要点击小眼睛
+                if (balanceStr.startsWith("**")) {
+                    AssistsCore.findById("com.unionpay:id/iv_fortune_eye")[0].click()
+                    delay(2000)
+                    balanceStr = 获取余额文字_旧版()
+                }
+                // 余额需要从不同卡里汇总加载
+                while (balanceStr.startsWith("--")) {
+                    delay(2000)
+                    balanceStr = 获取余额文字_旧版()
+                }
+                var lastBalance: Double? = null
+                var currentBalance = balanceStr.replace(",", "").toDouble()
+                while (true) {
+                    if (lastBalance != null && lastBalance == currentBalance) break
+                    lastBalance = currentBalance
+                    delay(1000)
+                    balanceStr = 获取余额文字_旧版()
+                    currentBalance = balanceStr.replace(",", "").toDouble()
+                }
+            }
+
+            Log.i("云闪付自动化", balanceStr)
+            var balance = balanceStr.replace(",", "").toDouble()
             balance = "%.2f".format(balance).toDouble()
 
             Log.i("云闪付自动化", "云闪付余额：$balance")
-            ds.setTodayBalance(BalanceChannelType.YSF, balance)
-            model.insertOrUpdateDetail(
-                "云闪付余额",
-                balance.toString(),
-                UniversalDate.today(),
-                false
+            ds.updateTodayBalance(BalanceChannelType.YSF)
+            model.upsertBalance(
+                BalanceRecord(
+                    sourceType = "云闪付",
+                    recordDate = getTodayString(),
+                    balance = balance,
+                )
             )
             Log.i("云闪付自动化", "获取云闪付余额完毕")
             return@next Step.get(GetBalanceStep.RETURN_APP.ordinal, delay = 0)
         }.next(GetBalanceStep.RETURN_APP.ordinal) {
-            val sumBalance = ds.getTodayBalance(BalanceChannelType.ALL)
-            model.insertOrUpdateDetail(
-                "总余额",
-                sumBalance.toString(),
-                UniversalDate.today(),
-                false
-            )
+            //
             val currentTimeSeconds = System.currentTimeMillis().toDouble()
             ds.putDouble("last_update_time", currentTimeSeconds)
             deferred?.complete("fianl complete")
@@ -614,4 +668,9 @@ private fun Context.startFloatingService(rect: Rect) {
 
 private fun Context.stopFloatingService() {
     stopService(Intent(this, WXFloatingWindowService::class.java))
+}
+
+private fun getTodayString(): String {
+    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    return java.time.LocalDate.now().format(formatter)
 }

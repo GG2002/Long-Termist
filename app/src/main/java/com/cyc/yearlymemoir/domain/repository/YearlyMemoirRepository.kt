@@ -4,6 +4,8 @@ import com.cyc.yearlymemoir.domain.model.Detail
 import com.cyc.yearlymemoir.domain.model.Field
 import com.cyc.yearlymemoir.domain.model.Group
 import com.cyc.yearlymemoir.domain.model.UniversalDate
+import com.cyc.yearlymemoir.domain.model.BalanceRecord
+import com.cyc.yearlymemoir.domain.model.TransactionRecord
 
 enum class TimePeriod {
     DAY,
@@ -43,4 +45,21 @@ interface YearlyMemoirRepository {
     suspend fun getFieldByName(name: String): Field?
 
     suspend fun getAllGroupsWithFields(): Map<Group, List<Field>>
+
+    // Balance APIs
+    suspend fun upsertBalance(balance: BalanceRecord)
+    suspend fun getAllBalances(): List<BalanceRecord>
+    suspend fun getBalancesByDate(date: String): List<BalanceRecord>
+    suspend fun getBalancesBySource(sourceType: String): List<BalanceRecord>
+
+    // Transaction APIs (split income/expense)
+    suspend fun upsertTransaction(record: TransactionRecord)
+    suspend fun getAllIncomes(): List<TransactionRecord>
+    suspend fun getAllExpenses(): List<TransactionRecord>
+    suspend fun getIncomesByDate(date: String): List<TransactionRecord>
+    suspend fun getExpensesByDate(date: String): List<TransactionRecord>
+    suspend fun getIncomesByTag(tag: String): List<TransactionRecord>
+    suspend fun getExpensesByTag(tag: String): List<TransactionRecord>
+    suspend fun getIncomeTags(): List<String>
+    suspend fun getExpenseTags(): List<String>
 }

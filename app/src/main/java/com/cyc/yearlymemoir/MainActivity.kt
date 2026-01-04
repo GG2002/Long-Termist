@@ -38,11 +38,11 @@ class MainActivity : ComponentActivity() {
         ds = DatastoreInit(appContext)
 
 
-//        val initialRoute = when (intent.action) {
-//            "com.cyc.yearlymemoir.PersonalBalanceScreen" -> "PersonalBalanceScreen"
-//            else -> "EveryDayScreen"
-//        }
-        val initialRoute = "PersonalBalanceScreen"
+        val initialRoute = when (intent.action) {
+            "com.cyc.yearlymemoir.PersonalBalanceScreen" -> "PersonalBalanceScreen"
+            else -> "EveryDayScreen"
+        }
+//        val initialRoute = "PersonalBalanceScreen"
         val calendarViewModel = CalendarViewModel()
 
         WorkScheduler.scheduleNowForRemindMe(applicationContext)
