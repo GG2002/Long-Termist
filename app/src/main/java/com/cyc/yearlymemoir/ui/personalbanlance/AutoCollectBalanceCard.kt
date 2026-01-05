@@ -21,11 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
@@ -190,11 +190,52 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
         }
     }
 
-    fun resetAllCacheBalance() {
+    fun resetCacheBalance(balanceType: BalanceChannelType) {
         viewModelScope.launch {
-            _channelHistories.value = emptyMap()
-            _channelBalances.value = emptyMap()
-            _channelSpends.value = emptyMap()
+            when(balanceType) {
+                BalanceChannelType.ZFB -> {
+                    _channelHistories.value = _channelHistories.value.toMutableMap().apply {
+                        this[BalanceChannelType.ZFB] = emptyList()
+                    }
+                    _channelBalances.value = _channelBalances.value.toMutableMap().apply {
+                        this[BalanceChannelType.ZFB] = 0.0
+                    }
+                    _channelSpends.value = _channelSpends.value.toMutableMap().apply {
+                        this[BalanceChannelType.ZFB] = 0.0
+                    }
+                    MainActivity.ds.resetTodayBalance(BalanceChannelType.ZFB)
+                }
+                BalanceChannelType.WX -> {
+                    _channelHistories.value = _channelHistories.value.toMutableMap().apply {
+                        this[BalanceChannelType.WX] = emptyList()
+                    }
+                    _channelBalances.value = _channelBalances.value.toMutableMap().apply {
+                        this[BalanceChannelType.WX] = 0.0
+                    }
+                    _channelSpends.value = _channelSpends.value.toMutableMap().apply {
+                        this[BalanceChannelType.WX] = 0.0
+                    }
+                    MainActivity.ds.resetTodayBalance(BalanceChannelType.WX)
+                }
+                BalanceChannelType.YSF -> {
+                    _channelHistories.value = _channelHistories.value.toMutableMap().apply {
+                        this[BalanceChannelType.YSF] = emptyList()
+                    }
+                    _channelBalances.value = _channelBalances.value.toMutableMap().apply {
+                        this[BalanceChannelType.YSF] = 0.0
+                    }
+                    _channelSpends.value = _channelSpends.value.toMutableMap().apply {
+                        this[BalanceChannelType.YSF] = 0.0
+                    }
+                    MainActivity.ds.resetTodayBalance(BalanceChannelType.YSF)
+                }
+                BalanceChannelType.ALL -> {
+                    _channelHistories.value = emptyMap()
+                    _channelBalances.value = emptyMap()
+                    _channelSpends.value = emptyMap()
+                    MainActivity.ds.resetTodayBalance(BalanceChannelType.ALL)
+                }
+            }
             refreshChartData()
         }
     }
@@ -431,7 +472,7 @@ fun AutoCollectBalanceCard(
                             AssistsCore.openAccessibilitySetting()
                             return@Button
                         }
-                        viewModel.resetAllCacheBalance()
+                        viewModel.resetCacheBalance(BalanceChannelType.ALL)
 
                         val deferred = CompletableDeferred<String>()
                         StepManager.execute(
@@ -727,7 +768,7 @@ fun BalanceItem(
 
         // 紧挨右组右侧的可点击提示符图标（不放进右组）
         Icon(
-            imageVector = Icons.Filled.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "更多",
             tint = colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -848,14 +889,6 @@ fun balanceItemLongPressHandler(
 ) {
     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
-    MainActivity.ds.resetTodayBalance(channelType)
-    Log.d(
-        "获取余额是否需要更新",
-        "${channelType.displayName}：${viewModel.channelBalances.value[channelType] ?: 0.0} 需要更新：" + MainActivity.ds.shouldUpdateBalance(
-            channelType
-        )
-    )
-
     // 特殊处理微信的悬浮窗权限
     if (channelType == BalanceChannelType.WX) {
         if (!Settings.canDrawOverlays(context)) {
@@ -870,7 +903,14 @@ fun balanceItemLongPressHandler(
         return
     }
 
-    viewModel.resetAllCacheBalance()
+    viewModel.resetCacheBalance(channelType)
+    Log.d(
+        "获取余额是否需要更新",
+        "${channelType.displayName}：${viewModel.channelBalances.value[channelType] ?: 0.0} 需要更新：" + MainActivity.ds.shouldUpdateBalance(
+            channelType
+        )
+    )
+
     val deferred = CompletableDeferred<String>()
     StepManager.execute(
         GetTodayBalanceStepImpl::class.java,

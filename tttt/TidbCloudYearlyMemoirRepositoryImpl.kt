@@ -57,14 +57,10 @@ class TidbCloudYearlyMemoirRepositoryImpl(
         date: UniversalDate,
         yearly: Boolean
     ) {
-        val (year, mdDate) = Pair(date.getRawYear(), date.getRawMDDate())
-        println("1111111111111111111111111" + fieldName)
         val fieldId = fieldDao.getFieldByName(fieldName)!!.field_id
-        println("222222222222222222222222222")
         val detailEntity = Detail(
             detailId = 0,
-            year = year,
-            mdDate = mdDate.toString(),
+            mdDate = date,
             yearly = yearly,
             fieldId = fieldId,
             detail = detail,

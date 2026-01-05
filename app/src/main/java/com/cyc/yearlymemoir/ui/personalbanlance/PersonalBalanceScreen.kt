@@ -3,6 +3,7 @@ package com.cyc.yearlymemoir.ui.personalbanlance
 import AutoCollectBalanceCard
 import android.annotation.SuppressLint
 import android.app.Application
+import android.os.Environment
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,8 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,6 +57,8 @@ import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -132,6 +137,55 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
             onDone()
         }
     }
+
+    private fun getDownloadsFile(): File {
+        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return File(dir, "LongTermistBalance.txt")
+    }
+
+    fun exportBalancesToFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                // Fetch all balances; if repository has only by date, we may need a method to get all
+                val all = try {
+                    model.getAllBalances()
+                } catch (e: Exception) {
+                    emptyList<BalanceRecord>()
+                }
+                val content = all.joinToString(separator = "\n") { r ->
+                    "${r.sourceType},${r.recordDate},${r.balance}"
+                }
+                val file = getDownloadsFile()
+                file.parentFile?.mkdirs()
+                file.writeText(content)
+                onSuccess()
+            } catch (e: IOException) {
+                onError("写入失败：${e.message}")
+            } catch (e: Exception) {
+                onError("导出失败：${e.message}")
+            }
+        }
+    }
+
+    fun importBalancesFromFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val file = getDownloadsFile()
+                if (!file.exists()) {
+                    onError("文件不存在：${file.absolutePath}")
+                    return@launch
+                }
+                val text = file.readText()
+                importBalancesFromText(text) {
+                    onSuccess()
+                }
+            } catch (e: IOException) {
+                onError("读取失败：${e.message}")
+            } catch (e: Exception) {
+                onError("导入失败：${e.message}")
+            }
+        }
+    }
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -149,6 +203,7 @@ fun PersonalBalanceScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var showImportSheet by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
         viewModel.computeAllBalance()
@@ -194,18 +249,39 @@ fun PersonalBalanceScreen(
                                 onDismissRequest = { menuExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("导出（占位）") },
-                                    onClick = {
-                                        menuExpanded = false
-                                        // Export placeholder: no-op for now
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
                                     text = { Text("导入") },
                                     onClick = {
                                         menuExpanded = false
                                         showImportSheet = true
+                                    }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("导出到文件") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.exportBalancesToFile(
+                                            onSuccess = {
+                                                viewModel.refreshAll()
+                                            },
+                                            onError = { msg ->
+                                                viewModel.refreshAll()
+                                            }
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("从文件导入") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        viewModel.importBalancesFromFile(
+                                            onSuccess = {
+                                                viewModel.refreshAll()
+                                            },
+                                            onError = { msg ->
+                                                viewModel.refreshAll()
+                                            }
+                                        )
                                     }
                                 )
                             }
@@ -213,7 +289,8 @@ fun PersonalBalanceScreen(
                     }
                 },
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         val scrollState = rememberScrollState()
         Column(

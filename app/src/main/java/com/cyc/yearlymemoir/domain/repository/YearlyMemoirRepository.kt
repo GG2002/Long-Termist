@@ -1,6 +1,7 @@
 package com.cyc.yearlymemoir.domain.repository
 
 import com.cyc.yearlymemoir.domain.model.Detail
+import com.cyc.yearlymemoir.domain.model.YearlyDetail
 import com.cyc.yearlymemoir.domain.model.Field
 import com.cyc.yearlymemoir.domain.model.Group
 import com.cyc.yearlymemoir.domain.model.UniversalDate
@@ -17,11 +18,16 @@ interface YearlyMemoirRepository {
 
     suspend fun getAllDetails(): List<Detail>
 
-    suspend fun getDetailByFieldAndUniversalDateAndYearly(
+    suspend fun getDetailByFieldAndUniversalDate(
         fieldId: Int,
-        universalDate: UniversalDate,
-        yearly: Boolean
+        universalDate: UniversalDate
     ): Detail?
+
+    // Yearly details APIs
+    suspend fun getAllYearlyDetails(): List<YearlyDetail>
+    suspend fun getYearlyDetailByFieldAndMdDate(fieldId: Int, mdDate: String): YearlyDetail?
+    suspend fun upsertYearlyDetail(detail: YearlyDetail)
+    suspend fun deleteYearlyDetail(detail: YearlyDetail)
 
     suspend fun getFirstDayFieldDataByName(
         name: String,
@@ -32,8 +38,7 @@ interface YearlyMemoirRepository {
     suspend fun insertOrUpdateDetail(
         fieldName: String,
         detail: String,
-        date: UniversalDate,
-        yearly: Boolean
+        date: UniversalDate
     )
 
     suspend fun deleteDetail(detail: Detail)

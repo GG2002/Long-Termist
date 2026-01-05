@@ -10,11 +10,13 @@ import com.cyc.yearlymemoir.data.local.dao.BalanceDao
 import com.cyc.yearlymemoir.data.local.dao.TransactionDao
 import com.cyc.yearlymemoir.data.local.dao.FieldDao
 import com.cyc.yearlymemoir.data.local.dao.GroupDao
+import com.cyc.yearlymemoir.data.local.dao.YearlyDetailDao
 import com.cyc.yearlymemoir.data.local.entity.DetailEntity
 import com.cyc.yearlymemoir.data.local.entity.BalanceEntity
 import com.cyc.yearlymemoir.data.local.entity.TransactionEntity
 import com.cyc.yearlymemoir.data.local.entity.FieldEntity
 import com.cyc.yearlymemoir.data.local.entity.GroupEntity
+import com.cyc.yearlymemoir.data.local.entity.YearlyDetailEntity
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_NUM
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_STR
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_TEXT
@@ -32,6 +34,7 @@ import kotlinx.coroutines.launch
 @Database(
     entities = [
         DetailEntity::class,
+        YearlyDetailEntity::class,
         FieldEntity::class,
         GroupEntity::class,
         BalanceEntity::class,
@@ -45,6 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
     // 为每个 DAO 提供一个抽象的 "getter" 方法。
     // Room 会在后台自动实现这些方法。
     abstract fun detailDao(): DetailDao
+    abstract fun yearlyDetailDao(): YearlyDetailDao
     abstract fun fieldDao(): FieldDao
     abstract fun groupDao(): GroupDao
     abstract fun balanceDao(): BalanceDao
@@ -76,7 +80,6 @@ abstract class AppDatabase : RoomDatabase() {
             // 插入你的预设数据
             val groupEntities = listOf(
                 GroupEntity(groupId = 1, groupName = "default", groupParentId = 0),
-                GroupEntity(groupId = 2, groupName = "资产余额", groupParentId = 0),
                 GroupEntity(groupId = 3, groupName = "动物朋友", groupParentId = 0),
                 GroupEntity(groupId = 4, groupName = "龟龟指标", groupParentId = 3)
             )
@@ -85,44 +88,20 @@ abstract class AppDatabase : RoomDatabase() {
             val fieldsEntities = listOf(
                 FieldEntity(
                     fieldId = 1,
-                    fieldName = "支付宝余额",
-                    fieldType = FIELD_TYPE_NUM,
-                    groupId = 2
+                    fieldName = "提醒我",
+                    fieldType = FIELD_TYPE_TEXT,
+                    groupId = 0
                 ),
                 FieldEntity(
                     fieldId = 2,
-                    fieldName = "微信余额",
-                    fieldType = FIELD_TYPE_NUM,
-                    groupId = 2
-                ),
-                FieldEntity(
-                    fieldId = 3,
-                    fieldName = "云闪付余额",
-                    fieldType = FIELD_TYPE_NUM,
-                    groupId = 2
-                ),
-                FieldEntity(
-                    fieldId = 4,
-                    fieldName = "总余额",
-                    fieldType = FIELD_TYPE_NUM,
-                    groupId = 2
-                ),
-                FieldEntity(
-                    fieldId = 5,
                     fieldName = "年事",
                     fieldType = FIELD_TYPE_TEXT,
                     groupId = 0
                 ),
                 FieldEntity(
-                    fieldId = 6,
+                    fieldId = 3,
                     fieldName = "生日",
                     fieldType = FIELD_TYPE_STR,
-                    groupId = 0
-                ),
-                FieldEntity(
-                    fieldId = 7,
-                    fieldName = "提醒我",
-                    fieldType = FIELD_TYPE_TEXT,
                     groupId = 0
                 ),
             )

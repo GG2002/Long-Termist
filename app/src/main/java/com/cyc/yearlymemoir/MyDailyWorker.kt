@@ -137,8 +137,7 @@ class RemindMeWorker(appContext: Context, workerParams: WorkerParameters) :
 
                 details.forEach {
                     val detailName = it.detail
-                    val universalDate =
-                        UniversalDate(it.year, UniversalMDDateType.fromString(it.mdDate)!!)
+                    val universalDate = it.mdDate
                     when (val diffDays = universalDate.diff(today, false)) {
                         0 -> {
                             persistentList.add("今天有 $detailName")

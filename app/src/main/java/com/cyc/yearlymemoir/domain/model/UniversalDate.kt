@@ -192,6 +192,14 @@ class UniversalDate(
                 mdDate = UniversalMDDateType.MonthDay(tmp.month.value, tmp.dayOfMonth)
             )
         }
+
+        fun parse(year: Int, mdDateStr: String): UniversalDate? {
+            val mdDate = UniversalMDDateType.fromString(mdDateStr) ?: return null
+            return UniversalDate(
+                year = year,
+                mdDate = mdDate
+            )
+        }
     }
 
     fun asMonthDayInYear(fYear: Int): UniversalMDDateType.MonthDay {
@@ -397,6 +405,9 @@ class UniversalDate(
     fun getRawYear(): Int {
         return year
     }
+    fun getRawMDDate(): UniversalMDDateType {
+        return mdDate
+    }
 
     fun getMDDateType(): Int {
         return when (mdDate) {
@@ -406,9 +417,7 @@ class UniversalDate(
         }
     }
 
-    fun getRawMDDate(): UniversalMDDateType {
-        return mdDate
-    }
+
 
     override fun toString(): String {
         return "$year-${mdDate}"

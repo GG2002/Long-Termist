@@ -1,12 +1,10 @@
 package com.cyc.yearlymemoir.ui.yearlycalendar
 
-import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +67,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -76,12 +75,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_NUM
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_STR
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_TEXT
 import com.cyc.yearlymemoir.domain.model.Field
 import com.cyc.yearlymemoir.domain.model.UniversalDate
+import com.cyc.yearlymemoir.domain.model.YearlyDetail
 import com.cyc.yearlymemoir.ui.UniversalDatePicker
 import com.cyc.yearlymemoir.utils.formatDateComponents
 import kotlinx.coroutines.Dispatchers
@@ -91,11 +92,10 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 // 主界面入口
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EveryDayScreen(
-    navController: NavController = rememberNavController(),
-) {
+fun EveryDayScreen() {
+    val navController = MainActivity.navController
     val sheetState: SheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded, skipHiddenState = true // 通常我们不希望卡片能被完全隐藏
     )
@@ -103,10 +103,6 @@ fun EveryDayScreen(
     val scaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = sheetState
     )
-
-    // 通过比较目标值来判断是否处于或正在前往“展开”状态
-//    val isExpanded = true
-//    Log.e("isExpanded", isExpanded.toString())
 
     // 表单
     var formState by remember { mutableStateOf(ReminderFormState()) }
@@ -158,10 +154,10 @@ fun EveryDayScreen(
                     showed = isExpanded
                 )
 
-                UpcomingEventSection(!isExpanded, navController)
+                UpcomingEventSection(!isExpanded)
 
                 // + 按钮，放到后面才能让其浮在上面两个组件的上面
-                if (formState.inputValue.isNotBlank()) {
+                if (formState.temporaryInputValue.isNotBlank()) {
                     var isLoading by remember { mutableStateOf(false) }
                     Button(
                         modifier = Modifier
@@ -180,17 +176,30 @@ fun EveryDayScreen(
                                 isLoading = true
                                 try {
                                     withContext(Dispatchers.IO) {
-                                        MainApplication.repository.insertOrUpdateDetail(
-                                            formState.selectedField.fieldName,
-                                            formState.inputValue,
-                                            formState.universalDate,
-                                            formState.isRepeatAnnuallyChecked
-                                        )
+                                        if (formState.selectedField.fieldName == "年事" || formState.selectedField.fieldName == "生日") {
+                                            formState.isRepeatAnnuallyChecked = true
+                                        }
+                                        if (formState.isRepeatAnnuallyChecked) {
+                                            // yearly: 写入 details_yearly
+                                            MainApplication.repository.upsertYearlyDetail(
+                                                YearlyDetail(
+                                                    mdDate = formState.universalDate,
+                                                    fieldId = formState.selectedField.fieldId,
+                                                    detail = formState.inputValue
+                                                )
+                                            )
+                                        } else {
+                                            // 非 yearly: 写入 details（包含具体年份）
+                                            MainApplication.repository.insertOrUpdateDetail(
+                                                formState.selectedField.fieldName,
+                                                formState.inputValue,
+                                                formState.universalDate
+                                            )
+                                        }
                                     }
                                 } finally {
                                     isLoading = false
-                                    formState.universalDate = UniversalDate.today()
-                                    formState.inputValue = ""
+                                    // 统一通过收缩来触发重置
                                     sheetState.partialExpand()
                                 }
                             }
@@ -281,6 +290,14 @@ fun EveryDayScreen(
                     )
             )
         }
+
+        // 监听收缩状态以统一重置输入变量
+        LaunchedEffect(sheetState.targetValue) {
+            if (sheetState.targetValue == SheetValue.PartiallyExpanded) {
+                // 收缩时清空/重置所有输入变量
+                formState = ReminderFormState()
+            }
+        }
     }
 }
 
@@ -307,10 +324,11 @@ fun DateHeader(solar: String, weekday: String, lunar: String) {
 
 
 @Composable
-fun UpcomingEventSection(showed: Boolean, navController: NavController) {
+fun UpcomingEventSection(showed: Boolean) {
     val today = LocalDate.now()
     val nearestEvent = "西瓜变甜了"
     val daysUntilEvent = ChronoUnit.DAYS.between(today, LocalDate.of(2025, 7, 1))
+    val navController = MainActivity.navController
 
     Column(
         modifier = Modifier
@@ -320,12 +338,12 @@ fun UpcomingEventSection(showed: Boolean, navController: NavController) {
             .alpha(if (showed) 1f else 0f)
             .then(
                 if (showed) {
-//            Modifier.pointerInput(Unit) {
-//                detectTapGestures(onTap = {
-//                    navController.navigate("YearlyCalendar")
-//                })
-//            }
                     Modifier
+                        .pointerInput(Unit) {
+                            detectTapGestures(onTap = {
+                                navController.navigate("YearlyCalendar")
+                            })
+                        }
                 } else {
                     Modifier // 不可见时，不添加任何手势处理
                 }
@@ -362,15 +380,17 @@ fun UpcomingEventSection(showed: Boolean, navController: NavController) {
 }
 
 data class ReminderFormState(
-    // 当前选中的类型，默认为日记
+    // 当前选中的类型，默认为提醒日程
     var selectedField: Field = Field(
-        fieldId = 0,
+        fieldId = 1,
         fieldName = "提醒我",
         fieldType = FIELD_TYPE_TEXT,
         groupId = 0
     ),
     // 输入框的内容
     var inputValue: String = "",
+    // 临时保存的用户原始输入（用于在不同日期间流转）
+    var temporaryInputValue: String = "",
     // "每年往复"复选框是否选中
     var isRepeatAnnuallyChecked: Boolean = false,
     // 日期
@@ -398,18 +418,38 @@ fun CustomInputTable(
 
     // 下拉列表是否展开
     var isDropdownExpanded by remember { mutableStateOf(false) }
+    // 切换类型时，重置两个输入变量
+    LaunchedEffect(selectedField) {
+        // 需求：仅清空临时输入，inputValue 按日期/每年往复逻辑重新计算
+        onFormStateChange(
+            reminderFormState.copy(
+                temporaryInputValue = ""
+            )
+        )
+    }
 
-    LaunchedEffect(selectedField, universalDate, isRepeatAnnuallyChecked) {
+    // 切换日期或“每年往复”时，仅重算 inputValue，不改动 temporaryInputValue
+    LaunchedEffect(universalDate, isRepeatAnnuallyChecked, selectedField) {
         val field = MainApplication.repository.getFieldByName(selectedField.fieldName)
-        MainApplication.repository.getDetailByFieldAndUniversalDateAndYearly(
-            field!!.fieldId,
-            universalDate,
-            isRepeatAnnuallyChecked
-        )?.let {
-            onFormStateChange(reminderFormState.copy(inputValue = it.detail))
-        } ?: run {
-            onFormStateChange(reminderFormState.copy(inputValue = ""))
+        val detail = if (isRepeatAnnuallyChecked) {
+            val mdStr = universalDate.getRawMDDate().toString()
+            MainApplication.repository
+                .getYearlyDetailByFieldAndMdDate(field!!.fieldId, mdStr)
+                ?.detail ?: ""
+        } else {
+            MainApplication.repository
+                .getDetailByFieldAndUniversalDate(field!!.fieldId, universalDate)
+                ?.detail ?: ""
         }
+
+        val temp = reminderFormState.temporaryInputValue
+        val merged = when {
+            detail.isNotEmpty() && temp.isNotEmpty() -> "$detail\n$temp"
+            detail.isNotEmpty() -> detail
+            else -> temp
+        }
+
+        onFormStateChange(reminderFormState.copy(inputValue = merged))
     }
 
     // ---- UI 布局 ----
@@ -454,7 +494,8 @@ fun CustomInputTable(
                                 onFormStateChange(
                                     reminderFormState.copy(
                                         selectedField = field,
-                                        inputValue = ""
+                                        inputValue = "",
+                                        temporaryInputValue = ""
                                     )
                                 )
                                 isDropdownExpanded = false
@@ -476,7 +517,8 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it
+                                        inputValue = it,
+                                        temporaryInputValue = it
                                     )
                                 )
                             },
@@ -500,7 +542,8 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it
+                                        inputValue = it,
+                                        temporaryInputValue = it
                                     )
                                 )
                             },
@@ -524,7 +567,8 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it
+                                        inputValue = it,
+                                        temporaryInputValue = it
                                     )
                                 )
                             },
@@ -550,40 +594,42 @@ fun CustomInputTable(
             Spacer(modifier = Modifier.height(8.dp))
 
             // --- 底部区域："每年往复" 复选框 ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable(
-                        enabled = showed,
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
-                        onFormStateChange(
-                            reminderFormState.copy(
-                                isRepeatAnnuallyChecked = !isRepeatAnnuallyChecked
-                            )
-                        )
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Text(
+            if (reminderFormState.selectedField.fieldName != "生日" && reminderFormState.selectedField.fieldName != "年事") {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp),
-                    text = "在年事本上显示 * ",
-                    style = typography.labelSmall,
-                    color = colorScheme.onSurfaceVariant,
-                )
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable(
+                            enabled = showed,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            onFormStateChange(
+                                reminderFormState.copy(
+                                    isRepeatAnnuallyChecked = !isRepeatAnnuallyChecked
+                                )
+                            )
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    Text(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp),
+                        text = "在年事本上显示 * ",
+                        style = typography.labelSmall,
+                        color = colorScheme.onSurfaceVariant,
+                    )
 
-                Checkbox(
-                    checked = isRepeatAnnuallyChecked, onCheckedChange = null, enabled = showed
-                )
-                Text(
-                    text = "每年往复", modifier = Modifier.padding(start = 8.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
+                    Checkbox(
+                        checked = isRepeatAnnuallyChecked, onCheckedChange = null, enabled = showed
+                    )
+                    Text(
+                        text = "每年往复", modifier = Modifier.padding(start = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
             }
 
             UniversalDatePicker(universalDate) {

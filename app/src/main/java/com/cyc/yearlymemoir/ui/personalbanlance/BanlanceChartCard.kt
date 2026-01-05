@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyc.yearlymemoir.MainApplication
-import com.cyc.yearlymemoir.domain.model.Detail
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.repository.TimePeriod
@@ -77,7 +76,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.Month
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -138,43 +136,24 @@ class ChartCardViewModel(application: Application) : AndroidViewModel(applicatio
         // 昨日变化：与上一天的差值
         val latest = sorted.lastOrNull()
         val prev = sorted.dropLast(1).lastOrNull()
-        _yestedayCost.value = if (latest != null && prev != null) latest.second - prev.second else 0.0
+        _yestedayCost.value =
+            if (latest != null && prev != null) latest.second - prev.second else 0.0
 
         // 本月相对上月变化：当月第一天总额 - 上月第一天总额
         val latestDate = latest?.first ?: return
-        val firstOfThisMonth = sorted.firstOrNull { it.first.year == latestDate.year && it.first.month == latestDate.month }?.second
+        val firstOfThisMonth =
+            sorted.firstOrNull { it.first.year == latestDate.year && it.first.month == latestDate.month }?.second
         val lastMonthDate = latestDate.minusMonths(1)
-        val firstOfLastMonth = sorted.firstOrNull { it.first.year == lastMonthDate.year && it.first.month == lastMonthDate.month }?.second
-        _lastMonthCost.value = if (firstOfThisMonth != null && firstOfLastMonth != null) firstOfThisMonth - firstOfLastMonth else 0.0
+        val firstOfLastMonth =
+            sorted.firstOrNull { it.first.year == lastMonthDate.year && it.first.month == lastMonthDate.month }?.second
+        _lastMonthCost.value =
+            if (firstOfThisMonth != null && firstOfLastMonth != null) firstOfThisMonth - firstOfLastMonth else 0.0
 
         // 本年相对去年变化：当年第一天总额 - 去年第一天总额
         val firstOfThisYear = sorted.firstOrNull { it.first.year == latestDate.year }?.second
         val firstOfLastYear = sorted.firstOrNull { it.first.year == latestDate.year - 1 }?.second
-        _lastYearCost.value = if (firstOfThisYear != null && firstOfLastYear != null) firstOfThisYear - firstOfLastYear else 0.0
-    }
-
-    /**
-     * 查找某年某月的第一条记录。
-     */
-    private fun findFirstEntryForMonth(
-        year: Int,
-        month: Month,
-        data: Map<LocalDate, Detail>
-    ): Detail? {
-        return data.entries
-            .filter { it.key.year == year && it.key.month == month }
-            .minByOrNull { it.key.dayOfMonth } // 找到这个月里日期最早的那天
-            ?.value
-    }
-
-    /**
-     * 查找某年的第一条记录。
-     */
-    private fun findFirstEntryForYear(year: Int, data: Map<LocalDate, Detail>): Detail? {
-        return data.entries
-            .filter { it.key.year == year }
-            .minByOrNull { it.key.dayOfYear } // 找到这年里日期最早的那天
-            ?.value
+        _lastYearCost.value =
+            if (firstOfThisYear != null && firstOfLastYear != null) firstOfThisYear - firstOfLastYear else 0.0
     }
 
     // 公开一个方法给 UI 调用来触发数据加载
@@ -192,8 +171,10 @@ class ChartCardViewModel(application: Application) : AndroidViewModel(applicatio
                     TimePeriod.DAY -> {
                         // 最近 30 天，按 MM-dd 显示
                         val last30 = dailyTotals.takeLast(30)
-                        _balanceChartData.value = last30.map { Pair(it.first.formatMonthDay(), it.second) }
+                        _balanceChartData.value =
+                            last30.map { Pair(it.first.formatMonthDay(), it.second) }
                     }
+
                     TimePeriod.MONTH -> {
                         // 按月汇总（每月最后一天的总额），显示 yy-MM
                         val monthTotals = dailyTotals
@@ -205,8 +186,17 @@ class ChartCardViewModel(application: Application) : AndroidViewModel(applicatio
                             }
                             .sortedBy { it.first.first * 100 + it.first.second.value }
                         val last12 = monthTotals.takeLast(12)
-                        _balanceChartData.value = last12.map { (ym, v) -> Pair(String.format("%02d-%02d", ym.first % 100, ym.second.value), v) }
+                        _balanceChartData.value = last12.map { (ym, v) ->
+                            Pair(
+                                String.format(
+                                    "%02d-%02d",
+                                    ym.first % 100,
+                                    ym.second.value
+                                ), v
+                            )
+                        }
                     }
+
                     TimePeriod.YEAR -> {
                         // 按年汇总（每年最后一天的总额），显示 yyyy
                         val yearTotals = dailyTotals
@@ -344,8 +334,10 @@ fun BanlanceChartCard(
                                     color = colorScheme.onSurface
                                 ),
                             ),
-                            minValue = max(metrics.second.minOfOrNull { it.second }?.minus(100)
-                                ?: 0.0, 0.0),
+                            minValue = max(
+                                metrics.second.minOfOrNull { it.second }?.minus(100)
+                                    ?: 0.0, 0.0
+                            ),
                             maxValue = metrics.second.maxOfOrNull { it.second }?.plus(100)
                                 ?: 0.0,
                         )

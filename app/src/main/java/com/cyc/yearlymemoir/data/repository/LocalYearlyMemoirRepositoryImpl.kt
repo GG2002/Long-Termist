@@ -1,42 +1,42 @@
 package com.cyc.yearlymemoir.data.repository
 
+import com.cyc.yearlymemoir.data.local.dao.BalanceDao
 import com.cyc.yearlymemoir.data.local.dao.DetailDao
 import com.cyc.yearlymemoir.data.local.dao.FieldDao
-import com.cyc.yearlymemoir.data.local.entity.toDomainModel
-import com.cyc.yearlymemoir.data.local.entity.toEntity
-import com.cyc.yearlymemoir.domain.model.Detail
-import com.cyc.yearlymemoir.domain.model.Field
-import com.cyc.yearlymemoir.domain.model.Group
-import com.cyc.yearlymemoir.domain.model.UniversalDate
-import com.cyc.yearlymemoir.domain.repository.TimePeriod
-import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
-import com.cyc.yearlymemoir.data.local.dao.BalanceDao
 import com.cyc.yearlymemoir.data.local.dao.TransactionDao
+import com.cyc.yearlymemoir.data.local.dao.YearlyDetailDao
 import com.cyc.yearlymemoir.data.local.entity.toDomainModel
 import com.cyc.yearlymemoir.data.local.entity.toEntity
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
+import com.cyc.yearlymemoir.domain.model.Detail
+import com.cyc.yearlymemoir.domain.model.Field
+import com.cyc.yearlymemoir.domain.model.Group
 import com.cyc.yearlymemoir.domain.model.TransactionRecord
+import com.cyc.yearlymemoir.domain.model.UniversalDate
+import com.cyc.yearlymemoir.domain.model.YearlyDetail
+import com.cyc.yearlymemoir.domain.repository.TimePeriod
+import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
 
 class LocalYearlyMemoirRepository(
     private val detailDao: DetailDao,
+    private val yearlyDetailDao: YearlyDetailDao,
     private val fieldDao: FieldDao,
     private val balanceDao: BalanceDao,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
 ) : YearlyMemoirRepository {
     override suspend fun getAllDetails(): List<Detail> {
         return detailDao.getAllDetails().map { it.toDomainModel() }
     }
 
-    override suspend fun getDetailByFieldAndUniversalDateAndYearly(
+    override suspend fun getDetailByFieldAndUniversalDate(
         fieldId: Int,
-        universalDate: UniversalDate,
-        yearly: Boolean
+        universalDate: UniversalDate
     ): Detail? {
         val year = universalDate.getRawYear()
         val mdDate = universalDate.getRawMDDate()
 
-        return detailDao.getDetailByFieldAndUniversalDateAndYearly(
-            fieldId, year, mdDate.toString(), yearly
+        return detailDao.getDetailByFieldAndDate(
+            fieldId, year, mdDate.toString()
         )?.toDomainModel()
     }
 
@@ -66,16 +66,12 @@ class LocalYearlyMemoirRepository(
     override suspend fun insertOrUpdateDetail(
         fieldName: String,
         detail: String,
-        date: UniversalDate,
-        yearly: Boolean
+        date: UniversalDate
     ) {
-        val (year, mdDate) = Pair(date.getRawYear(), date.getRawMDDate())
         val fieldId = fieldDao.getFieldByName(fieldName)!!.fieldId
         val detailEntity = Detail(
-            detailId = 0,
-            year = year,
-            mdDate = mdDate.toString(),
-            yearly = yearly,
+            year = date.getRawYear(),
+            mdDate = date,
             fieldId = fieldId,
             detail = detail,
         ).toEntity()
@@ -83,7 +79,7 @@ class LocalYearlyMemoirRepository(
     }
 
     override suspend fun deleteDetail(detail: Detail) {
-        TODO("Not yet implemented")
+        detailDao.delete(detail.toEntity())
     }
 
     override suspend fun insertOrUpdateField(field: Field) {
@@ -101,6 +97,26 @@ class LocalYearlyMemoirRepository(
 
     override suspend fun getAllGroupsWithFields(): Map<Group, List<Field>> {
         TODO("Not yet implemented")
+    }
+
+    // Yearly details
+    override suspend fun getAllYearlyDetails(): List<YearlyDetail> {
+        return yearlyDetailDao.getAll().map { it.toDomainModel() }
+    }
+
+    override suspend fun getYearlyDetailByFieldAndMdDate(
+        fieldId: Int,
+        mdDate: String
+    ): YearlyDetail? {
+        return yearlyDetailDao.getByFieldAndMdDate(fieldId, mdDate)?.toDomainModel()
+    }
+
+    override suspend fun upsertYearlyDetail(detail: YearlyDetail) {
+        yearlyDetailDao.upsert(detail.toEntity())
+    }
+
+    override suspend fun deleteYearlyDetail(detail: YearlyDetail) {
+        yearlyDetailDao.delete(detail.toEntity())
     }
 
     // Balance APIs

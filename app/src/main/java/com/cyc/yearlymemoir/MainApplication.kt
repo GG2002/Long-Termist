@@ -7,9 +7,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.util.Log
 import com.cyc.yearlymemoir.data.local.db.AppDatabase
-import com.cyc.yearlymemoir.data.repository.HybridYearlyMemoirRepository
 import com.cyc.yearlymemoir.data.repository.LocalYearlyMemoirRepository
-import com.cyc.yearlymemoir.data.tidbcloud.db.DbClient
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.WX_ENABLED
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.ZFB_ENABLED
@@ -27,7 +25,8 @@ class MainApplication : Application() {
     // 懒加载数据库实例
     val database by lazy { AppDatabase.getInstance(this, applicationScope) }
 
-    val dbClient by lazy { DbClient() }
+    // tidb cloud 客户端
+    // val dbClient by lazy { DbClient() }
 
     companion object {
         const val CHANNEL_ID_NORMAL = "normal_channel"
@@ -47,14 +46,11 @@ class MainApplication : Application() {
     private fun initializeData() {
         val localRepo = LocalYearlyMemoirRepository(
             database.detailDao(),
+            database.yearlyDetailDao(),
             database.fieldDao(),
             database.balanceDao(),
             database.transactionDao(),
         )
-        // val cloudRepo = TidbCloudYearlyMemoirRepositoryImpl(
-        //     dbClient.detailDao,
-        //     dbClient.fieldDao
-        // )
         ds = DatastoreInit(applicationContext)
         if (ds.getString(WX_ENABLED).isNullOrBlank()) {
             ds.putString(WX_ENABLED, "true")
@@ -62,18 +58,24 @@ class MainApplication : Application() {
         if (ds.getString(ZFB_ENABLED).isNullOrBlank()) {
             ds.putString(ZFB_ENABLED, "true")
         }
+        repository = localRepo
+
+        // 初始化云端数据库，采取混合模式备份数据
+        // val cloudRepo = TidbCloudYearlyMemoirRepositoryImpl(
+        //     dbClient.detailDao,
+        //     dbClient.fieldDao
+        // )
         // repository = HybridYearlyMemoirRepository(
         //     localRepo, cloudRepo, ds
         // )
-        repository = localRepo
-        applicationScope.launch {
-            try {
-                val hybridRepo = repository as? HybridYearlyMemoirRepository
-                hybridRepo?.initializeDatabaseIfEmpty()
-            } catch (e: Exception) {
-                Log.e("数据同步", "在 Application 中后台初始化数据失败：${e.message}")
-            }
-        }
+        // applicationScope.launch {
+        //     try {
+        //         val hybridRepo = repository as? HybridYearlyMemoirRepository
+        //         hybridRepo?.initializeDatabaseIfEmpty()
+        //     } catch (e: Exception) {
+        //         Log.e("数据同步", "在 Application 中后台初始化数据失败：${e.message}")
+        //     }
+        // }
     }
 
     private fun createNotificationChannel() {

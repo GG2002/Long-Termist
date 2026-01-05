@@ -1,10 +1,13 @@
 package com.cyc.yearlymemoir
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.core.util.Consumer
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,7 +18,7 @@ import com.cyc.yearlymemoir.domain.repository.DatastoreInit
 import com.cyc.yearlymemoir.ui.PermissionScreen
 import com.cyc.yearlymemoir.ui.personalbanlance.PersonalBalanceScreen
 import com.cyc.yearlymemoir.ui.theme.YearlyMemoirTheme
-import com.cyc.yearlymemoir.ui.yearlycalendar.CalendarViewModel
+import com.cyc.yearlymemoir.ui.yearlycalendar.DetailsManagementScreen
 import com.cyc.yearlymemoir.ui.yearlycalendar.EveryDayScreen
 import com.cyc.yearlymemoir.ui.yearlycalendar.YearlyCalendar
 
@@ -29,7 +32,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    @OptIn(ExperimentalSharedTransitionApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -38,32 +40,48 @@ class MainActivity : ComponentActivity() {
         ds = DatastoreInit(appContext)
 
 
-        val initialRoute = when (intent.action) {
-            "com.cyc.yearlymemoir.PersonalBalanceScreen" -> "PersonalBalanceScreen"
-            else -> "EveryDayScreen"
-        }
-//        val initialRoute = "PersonalBalanceScreen"
-        val calendarViewModel = CalendarViewModel()
-
         WorkScheduler.scheduleNowForRemindMe(applicationContext)
 
         setContent {
             navController = rememberNavController()
 
+            val startRoute = "EveryDayScreen"
+            // val startRoute = "PersonalBalanceScreen"
+            // val startRoute = "YearlyCalendar"
+
+            // App 冷启动，处理初始 Intent 跳转
+            LaunchedEffect(Unit) {
+                if (intent.action == "com.cyc.yearlymemoir.PersonalBalanceScreen") {
+                    navController.navigate("PersonalBalanceScreen")
+                }
+            }
+            // App 已经在后台，再次被唤起时，处理 Intent 跳转
+            DisposableEffect(Unit) {
+                val listener = Consumer<Intent> { newIntent ->
+                    if (newIntent.action == "com.cyc.yearlymemoir.PersonalBalanceScreen") {
+                        // 关键点：避免重复入栈，先 navigate 再确保单一实例
+                        navController.navigate("PersonalBalanceScreen") {
+                            // 这里的逻辑可以防止多次点击导致堆叠多个 PersonalBalanceScreen
+                            popUpTo("EveryDayScreen") {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+                addOnNewIntentListener(listener)
+                onDispose { removeOnNewIntentListener(listener) }
+            }
+
             YearlyMemoirTheme {
                 NavHost(
-                    navController = navController, startDestination = initialRoute
+                    navController = navController, startDestination = startRoute
                 ) {
-                    composable("PersonalBalanceScreen") {
-                        PersonalBalanceScreen()
-                    }
-                    composable("EveryDayScreen") {
-                        EveryDayScreen(
-                            navController,
-                        )
-                    }
-                    composable("YearlyCalendar") { YearlyCalendar(calendarViewModel) }
+                    composable("PersonalBalanceScreen") { PersonalBalanceScreen() }
+                    composable("EveryDayScreen") { EveryDayScreen() }
+                    composable("YearlyCalendar") { YearlyCalendar() }
                     composable("PermissionScreen") { PermissionScreen() }
+                    composable("DetailsManagement") { DetailsManagementScreen() }
                 }
             }
         }

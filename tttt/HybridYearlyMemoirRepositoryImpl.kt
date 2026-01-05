@@ -68,12 +68,10 @@ class HybridYearlyMemoirRepository(
                             )
 
                             detailsPair.first.forEach { detail ->
-                                val mdDate = UniversalMDDateType.fromString(detail.mdDate)!!
-
                                 localRepository.insertOrUpdateDetail(
                                     fieldName = fieldNameToFetch,
                                     detail = detail.detail,
-                                    date = UniversalDate(detail.year, mdDate),
+                                    date = detail.mdDate,
                                     yearly = detail.yearly
                                 )
                             }

@@ -1,6 +1,7 @@
 package com.cyc.yearlymemoir.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Upsert
 import com.cyc.yearlymemoir.data.local.entity.DetailEntity
@@ -28,7 +29,6 @@ interface DetailDao {
             FROM details
             WHERE field_id = :fieldId
             AND md_date LIKE "MD-%"
-            AND yearly = False
             GROUP BY year, SUBSTR(md_date, 4, 2)
         )
         ORDER BY year, md_date
@@ -54,16 +54,18 @@ interface DetailDao {
     @Query(
         """    
         SELECT * FROM details
-        WHERE field_id=:fieldId AND year = :year AND md_date = :date AND yearly = :yearly 
+        WHERE field_id=:fieldId AND year = :year AND md_date = :date
         """
     )
-    suspend fun getDetailByFieldAndUniversalDateAndYearly(
+    suspend fun getDetailByFieldAndDate(
         fieldId: Int,
         year: Int,
-        date: String,
-        yearly: Boolean
+        date: String
     ): DetailEntity?
 
     @Query("DELETE FROM details")
     suspend fun deleteAll()
+
+    @Delete
+    suspend fun delete(detail: DetailEntity)
 }

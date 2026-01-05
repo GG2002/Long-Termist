@@ -2,6 +2,14 @@ package com.cyc.yearlymemoir.domain.model
 
 
 data class Detail(
-    val detailId: Int, val year: Int, val mdDate: String,
-    val yearly: Boolean, val fieldId: Int, val detail: String
+    val year: Int,
+    val mdDate: UniversalDate,
+    val fieldId: Int,
+    val detail: String
+)
+
+data class YearlyDetail(
+    val mdDate: UniversalDate,
+    val fieldId: Int,
+    val detail: String
 )
