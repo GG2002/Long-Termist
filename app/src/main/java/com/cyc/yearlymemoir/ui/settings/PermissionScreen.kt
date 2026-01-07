@@ -1,4 +1,4 @@
-package com.cyc.yearlymemoir.ui
+package com.cyc.yearlymemoir.ui.settings
 
 import android.Manifest
 import android.annotation.SuppressLint

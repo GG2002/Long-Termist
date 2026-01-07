@@ -304,6 +304,12 @@ fun EveryDayScreen() {
 @Composable
 fun DateHeader(solar: String, weekday: String, lunar: String) {
     Row(
+        modifier = Modifier.pointerInput(Unit) {
+            // 双击进入后台任务管理；使用手势而非 clickable，避免任何点击水波纹等效果
+            detectTapGestures(onDoubleTap = {
+                MainActivity.navController.navigate("TaskControlPanel")
+            })
+        },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {

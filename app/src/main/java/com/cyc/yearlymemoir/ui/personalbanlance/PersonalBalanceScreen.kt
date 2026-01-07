@@ -52,6 +52,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,12 +67,13 @@ import java.util.Locale
 
 class PersonalBalanceViewModel(application: Application) : AndroidViewModel(application) {
     private val model = MainApplication.repository
+    private val ds = MainActivity.ds
 
     private val _allBalance = MutableStateFlow(0.0)
     val allBalance: StateFlow<Double> = _allBalance
 
-    private val _lastUpdated = MutableStateFlow(0.0)
-    val lastUpdated = _lastUpdated
+    private val _lastUpdated = MutableStateFlow(0L)
+    val lastUpdated: StateFlow<Long> = _lastUpdated
 
     // 子组件刷新的触发计数（父组件控制）
     private val _refreshTick = MutableStateFlow(0)
@@ -88,7 +90,8 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
             }
             val total = balances.sumOf { it.balance }
             _allBalance.value = total
-            _lastUpdated.value = System.currentTimeMillis().toDouble()
+            _lastUpdated.value = ds.getLong("last_update_time")
+            println("last_update_time: ${_lastUpdated.value}")
         }
     }
 
@@ -197,7 +200,7 @@ fun PersonalBalanceScreen(
     viewModel: PersonalBalanceViewModel = viewModel()
 ) {
     val allBalance by viewModel.allBalance.collectAsStateWithLifecycle()
-    val lastUpdate by viewModel.lastUpdated.collectAsStateWithLifecycle()
+    val lastUpdated by viewModel.lastUpdated.collectAsStateWithLifecycle()
     val refreshTick by viewModel.refreshTick.collectAsStateWithLifecycle()
 
     var menuExpanded by remember { mutableStateOf(false) }
@@ -225,7 +228,7 @@ fun PersonalBalanceScreen(
                     ) {
                         val formattedTime =
                             SimpleDateFormat("MM 月 dd 日 HH:mm", Locale.getDefault())
-                                .format(Date(lastUpdate.toLong()))
+                                .format(Date(lastUpdated))
                         Column {
                             Text(
                                 "总余额：${String.format(Locale.getDefault(), "%.2f", allBalance)}",

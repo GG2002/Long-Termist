@@ -39,7 +39,6 @@ enum class BalanceChannelType(
 data class BalanceRecord(val balance: Int, val date: String)
 
 class DatastoreInit(private val context: Context) {
-    // 同步 get 方法
     fun getString(key: String): String? {
         val preferencesKey = stringPreferencesKey(key)
         return runBlocking {
@@ -47,7 +46,6 @@ class DatastoreInit(private val context: Context) {
         }
     }
 
-    // 同步 set 方法
     fun putString(key: String, value: String?) {
         val preferencesKey = stringPreferencesKey(key)
         runBlocking {
@@ -61,7 +59,28 @@ class DatastoreInit(private val context: Context) {
         }
     }
 
-    // 可选：封装常用类型
+    fun getBoolean(key: String, default: Boolean = false): Boolean {
+        val str = getString(key)
+        return try {
+            str?.toBoolean() ?: default
+        } catch (e: Exception) {
+            default
+        }
+    }
+
+    fun putBoolean(key: String, value: Boolean) {
+        putString(key, value.toString())
+    }
+
+    fun getLong(key: String, default: Long = 0L): Long {
+        val str = getString(key)
+        return try {
+            str?.toLong() ?: default
+        } catch (e: NumberFormatException) {
+            default
+        }
+    }
+
     fun getInt(key: String, default: Int = 0): Int {
         val str = getString(key)
         return try {
@@ -72,6 +91,10 @@ class DatastoreInit(private val context: Context) {
     }
 
     fun putInt(key: String, value: Int) {
+        putString(key, value.toString())
+    }
+
+    fun putLong(key: String, value: Long) {
         putString(key, value.toString())
     }
 
@@ -135,9 +158,9 @@ class DatastoreInit(private val context: Context) {
     fun shouldUpdateBalance(type: BalanceChannelType): Boolean {
         // 先看是否启用
         val enabled = when (type) {
-            BalanceChannelType.ZFB -> getString(PreferencesKeys.ZFB_ENABLED).toBoolean()
-            BalanceChannelType.WX -> getString(PreferencesKeys.WX_ENABLED).toBoolean()
-            BalanceChannelType.YSF -> getString(PreferencesKeys.YSF_ENABLED).toBoolean()
+            BalanceChannelType.ZFB -> getBoolean(PreferencesKeys.ZFB_ENABLED)
+            BalanceChannelType.WX -> getBoolean(PreferencesKeys.WX_ENABLED)
+            BalanceChannelType.YSF -> getBoolean(PreferencesKeys.YSF_ENABLED)
             BalanceChannelType.ALL -> return false
         }
         if (!enabled) return false
@@ -160,5 +183,4 @@ class DatastoreInit(private val context: Context) {
 
         return lastUpdate < todayAt0AM
     }
-
 }

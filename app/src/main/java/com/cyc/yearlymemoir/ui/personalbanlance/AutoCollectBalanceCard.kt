@@ -121,7 +121,8 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
             val workManager =
                 WorkManager.getInstance(getApplication<Application>().applicationContext)
             val workInfos =
-                workManager.getWorkInfosForUniqueWork(WorkScheduler.UNIQUE_WORK_NAME).await()
+                workManager.getWorkInfosForUniqueWork(WorkScheduler.WORK_GET_BALANCE_8AM)
+                    .await()
             _isScheduled.value =
                 workInfos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
         }
@@ -132,7 +133,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
         if (enabled) {
             WorkScheduler.enableGetPersonalBalance8amWork(ctx)
         } else {
-            WorkScheduler.cancelGetPersonalBalance8amWork(ctx)
+            WorkScheduler.cancelByTag(ctx, WorkScheduler.WORK_GET_BALANCE_8AM)
         }
         _isScheduled.value = enabled
     }
@@ -192,7 +193,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
 
     fun resetCacheBalance(balanceType: BalanceChannelType) {
         viewModelScope.launch {
-            when(balanceType) {
+            when (balanceType) {
                 BalanceChannelType.ZFB -> {
                     _channelHistories.value = _channelHistories.value.toMutableMap().apply {
                         this[BalanceChannelType.ZFB] = emptyList()
@@ -205,6 +206,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     }
                     MainActivity.ds.resetTodayBalance(BalanceChannelType.ZFB)
                 }
+
                 BalanceChannelType.WX -> {
                     _channelHistories.value = _channelHistories.value.toMutableMap().apply {
                         this[BalanceChannelType.WX] = emptyList()
@@ -217,6 +219,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     }
                     MainActivity.ds.resetTodayBalance(BalanceChannelType.WX)
                 }
+
                 BalanceChannelType.YSF -> {
                     _channelHistories.value = _channelHistories.value.toMutableMap().apply {
                         this[BalanceChannelType.YSF] = emptyList()
@@ -229,6 +232,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     }
                     MainActivity.ds.resetTodayBalance(BalanceChannelType.YSF)
                 }
+
                 BalanceChannelType.ALL -> {
                     _channelHistories.value = emptyMap()
                     _channelBalances.value = emptyMap()
@@ -468,6 +472,7 @@ fun AutoCollectBalanceCard(
                 )
                 Button(
                     onClick = {
+                        MainActivity.ds.putLong("last_update_time", 0)
                         if (!AssistsCore.isAccessibilityServiceEnabled()) {
                             AssistsCore.openAccessibilitySetting()
                             return@Button

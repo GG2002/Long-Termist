@@ -15,8 +15,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.window.layout.WindowMetrics
 import androidx.window.layout.WindowMetricsCalculator
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
-import com.cyc.yearlymemoir.ui.PermissionScreen
 import com.cyc.yearlymemoir.ui.personalbanlance.PersonalBalanceScreen
+import com.cyc.yearlymemoir.ui.settings.PermissionScreen
+import com.cyc.yearlymemoir.ui.settings.TaskControlPanelScreen
+import com.cyc.yearlymemoir.ui.settings.TaskHistoryScreen
 import com.cyc.yearlymemoir.ui.theme.YearlyMemoirTheme
 import com.cyc.yearlymemoir.ui.yearlycalendar.DetailsManagementScreen
 import com.cyc.yearlymemoir.ui.yearlycalendar.EveryDayScreen
@@ -40,7 +42,7 @@ class MainActivity : ComponentActivity() {
         ds = DatastoreInit(appContext)
 
 
-        WorkScheduler.scheduleNowForRemindMe(applicationContext)
+        WorkScheduler.runTaskNow(applicationContext, WorkScheduler.TAG_REMIND_ME)
 
         setContent {
             navController = rememberNavController()
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
             val startRoute = "EveryDayScreen"
             // val startRoute = "PersonalBalanceScreen"
             // val startRoute = "YearlyCalendar"
+            // val startRoute = "TaskControlPanel"
 
             // App 冷启动，处理初始 Intent 跳转
             LaunchedEffect(Unit) {
@@ -77,11 +80,16 @@ class MainActivity : ComponentActivity() {
                 NavHost(
                     navController = navController, startDestination = startRoute
                 ) {
-                    composable("PersonalBalanceScreen") { PersonalBalanceScreen() }
                     composable("EveryDayScreen") { EveryDayScreen() }
-                    composable("YearlyCalendar") { YearlyCalendar() }
                     composable("PermissionScreen") { PermissionScreen() }
+                    composable("YearlyCalendar") { YearlyCalendar() }
+                    composable("PersonalBalanceScreen") { PersonalBalanceScreen() }
                     composable("DetailsManagement") { DetailsManagementScreen() }
+                    composable("TaskControlPanel") { TaskControlPanelScreen() }
+                    composable("TaskHistory/{tag}") { backStack ->
+                        val tag = backStack.arguments?.getString("tag") ?: ""
+                        TaskHistoryScreen(tag)
+                    }
                 }
             }
         }

@@ -32,6 +32,9 @@ class OverlayConfirmService : Service() {
         // 定义广播动作，用包名做前缀保证唯一性
         const val ACTION_CONFIRM_RESULT = "com.cyc.yearlymemoir.CONFIRM_RESULT"
         const val EXTRA_CONFIRMED = "extra_confirmed"
+    // 新增：弹窗视图已成功添加的广播
+    const val ACTION_OVERLAY_READY = "com.cyc.yearlymemoir.OVERLAY_READY"
+    const val EXTRA_READY = "extra_ready"
     }
 
     private lateinit var windowManager: WindowManager
@@ -95,6 +98,11 @@ class OverlayConfirmService : Service() {
 
         // 5. 将视图添加到窗口
         windowManager.addView(overlayView, params)
+
+        // 通知外界：悬浮窗已添加，视图可见/可交互（若屏幕点亮）
+        sendBroadcast(Intent(ACTION_OVERLAY_READY).apply {
+            putExtra(EXTRA_READY, true)
+        })
 
         return START_NOT_STICKY
     }
@@ -198,6 +206,77 @@ object OverlayConfirmManager {
             }
 
             context.startForegroundService(serviceIntent)
+        }
+    }
+
+    /**
+     * 等待悬浮窗视图成功添加（弹窗已显示）。用于 Worker 在非交互状态下无限重试，直到视图就绪。
+     */
+    suspend fun ensureShown(
+        context: Context,
+        title: String,
+        message: String
+    ): Boolean {
+        if (!hasOverlayPermission(context)) {
+            requestOverlayPermission(context)
+            return false
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    if (intent?.action == OverlayConfirmService.ACTION_OVERLAY_READY) {
+                        val ready = intent.getBooleanExtra(OverlayConfirmService.EXTRA_READY, false)
+                        if (continuation.isActive) {
+                            continuation.resume(ready)
+                        }
+                        try { ctx?.unregisterReceiver(this) } catch (_: Exception) {}
+                    }
+                }
+            }
+
+            // 注销清理
+            continuation.invokeOnCancellation {
+                try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+            }
+
+            val filter = IntentFilter(OverlayConfirmService.ACTION_OVERLAY_READY)
+            val flags = ContextCompat.RECEIVER_VISIBLE_TO_INSTANT_APPS
+            ContextCompat.registerReceiver(context, receiver, filter, flags)
+
+            // 启动服务以尝试显示悬浮窗
+            val serviceIntent = Intent(context, OverlayConfirmService::class.java).apply {
+                putExtra("TITLE", title)
+                putExtra("MESSAGE", message)
+            }
+            context.startForegroundService(serviceIntent)
+        }
+    }
+
+    /**
+     * 仅等待用户点击结果（不再次启动服务）。需确保弹窗已通过 ensureShown 显示。
+     */
+    suspend fun waitForResult(context: Context): Boolean {
+        return suspendCancellableCoroutine { continuation ->
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    if (intent?.action == OverlayConfirmService.ACTION_CONFIRM_RESULT) {
+                        val result = intent.getBooleanExtra(OverlayConfirmService.EXTRA_CONFIRMED, false)
+                        if (continuation.isActive) {
+                            continuation.resume(result)
+                        }
+                        try { ctx?.unregisterReceiver(this) } catch (_: Exception) {}
+                    }
+                }
+            }
+
+            continuation.invokeOnCancellation {
+                try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+            }
+
+            val filter = IntentFilter(OverlayConfirmService.ACTION_CONFIRM_RESULT)
+            val flags = ContextCompat.RECEIVER_VISIBLE_TO_INSTANT_APPS
+            ContextCompat.registerReceiver(context, receiver, filter, flags)
         }
     }
 
