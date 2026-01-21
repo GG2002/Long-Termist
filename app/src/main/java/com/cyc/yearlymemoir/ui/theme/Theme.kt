@@ -67,7 +67,7 @@ fun YearlyMemoirTheme(
         val color = Color.Transparent.toArgb()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             window.decorView.setOnApplyWindowInsetsListener { view, insets ->
-                val statusBarInsets = insets.getInsets(WindowInsets.Type.statusBars())
+                insets.getInsets(WindowInsets.Type.statusBars())
                 view.setBackgroundColor(color)
                 insets
             }

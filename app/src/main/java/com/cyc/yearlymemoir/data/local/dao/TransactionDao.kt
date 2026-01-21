@@ -11,6 +11,14 @@ interface TransactionDao {
     @Upsert
     suspend fun upsert(transaction: TransactionEntity)
 
+    // 删除指定 id 的记录
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: Int)
+
+    // 获取所有交易，按日期从新到旧
+    @Query("SELECT * FROM transactions ORDER BY record_date DESC, id DESC")
+    suspend fun getAllTransactionsDesc(): List<TransactionEntity>
+
     // 获取所有收入（amount > 0）
     @Query("SELECT * FROM transactions WHERE amount > 0 ORDER BY record_date ASC")
     suspend fun getAllIncomes(): List<TransactionEntity>

@@ -5,7 +5,6 @@ import android.content.Intent
 import android.util.Log
 import androidx.work.WorkerParameters
 import com.cyc.yearlymemoir.MainApplication
-import com.cyc.yearlymemoir.MainActivity.Companion.appContext
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.repository.TimePeriod
 import com.cyc.yearlymemoir.services.NotificationHelper
@@ -50,21 +49,22 @@ class RemindMeWorker(appContext: Context, workerParams: WorkerParameters) :
                     }
                 }
 
+                val context = MainApplication.instance
                 // 显示普通通知
                 if (simpleList.isNotEmpty()) {
                     val contentText = simpleList.joinToString("，")
-                    NotificationHelper.showSimpleNotification(appContext, "提醒事项", contentText)
+                    NotificationHelper.showSimpleNotification(context, "提醒事项", contentText)
                 }
 
                 // 启动常驻通知服务
                 if (persistentList.isNotEmpty()) {
                     val contentText = persistentList.joinToString("，")
                     Log.d("RemindMeWorker", "启动常驻通知，通知内容：$contentText")
-                    val remindMeIntent = Intent(appContext, RemindMeService::class.java).apply {
+                    val remindMeIntent = Intent(context, RemindMeService::class.java).apply {
                         putExtra(RemindMeService.EXTRA_TITLE, "即将来临的重要日期")
                         putExtra(RemindMeService.EXTRA_TEXT, contentText)
                     }
-                    appContext.startForegroundService(remindMeIntent)
+                    context.startForegroundService(remindMeIntent)
                 }
                 // 为空就取消通知
                 else {

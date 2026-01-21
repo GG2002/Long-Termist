@@ -141,6 +141,10 @@ class LocalYearlyMemoirRepository(
         transactionDao.upsert(record.toEntity())
     }
 
+    override suspend fun deleteTransaction(id: Int) {
+        transactionDao.deleteById(id)
+    }
+
     override suspend fun getAllIncomes(): List<TransactionRecord> {
         return transactionDao.getAllIncomes().map { it.toDomainModel() }
     }
@@ -171,5 +175,9 @@ class LocalYearlyMemoirRepository(
 
     override suspend fun getExpenseTags(): List<String> {
         return transactionDao.getExpenseTags()
+    }
+
+    override suspend fun getAllTransactionsDesc(): List<TransactionRecord> {
+        return transactionDao.getAllTransactionsDesc().map { it.toDomainModel() }
     }
 }

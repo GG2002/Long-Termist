@@ -12,7 +12,8 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,19 +23,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,11 +46,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -153,7 +157,7 @@ fun PermissionScreen() {
                         // Android 11+ 使用新 API
                         Environment.isExternalStorageManager()
                     } else
-                        // Android 6.0-10 检查读写权限
+                    // Android 6.0-10 检查读写权限
                         checkReadWritePermissions(context)
                 },
                 onRequest = {
@@ -194,35 +198,39 @@ fun PermissionScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("权限设置中心") },
+                title = { Text("设置中心") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = colorScheme.primaryContainer,
+                    titleContentColor = colorScheme.onPrimaryContainer,
                 )
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Text(
-                    "为了保证应用的正常运行，请授予以下必要权限：",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            items(permissionActions) { permission ->
-                val isGranted = permissionStates[permission.title]?.value ?: false
-                PermissionItem(
-                    title = permission.title,
-                    description = permission.description,
-                    isGranted = isGranted,
-                    onRequest = permission.onRequest
-                )
+            Text(
+                "为了保证应用的正常运行，请授予以下必要权限：",
+                style = typography.bodyLarge
+            )
+            Spacer(Modifier.height(6.dp))
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                permissionActions.forEach { permission ->
+                    val isGranted = permissionStates[permission.title]?.value ?: false
+                    PermissionItem(
+                        title = permission.title,
+                        description = permission.description,
+                        isGranted = isGranted,
+                        onRequest = permission.onRequest
+                    )
+                    HorizontalDivider(thickness = 0.5.dp)
+                }
             }
         }
     }
@@ -236,44 +244,59 @@ private fun PermissionItem(
     onRequest: () -> Unit
 ) {
     Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = description, style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
-                        contentDescription = "Status Icon",
-                        tint = if (isGranted) Color(0xFF4CAF50) else Color(0xFFF44336),
-                        modifier = Modifier.size(20.dp)
+                    Text(
+                        text = title,
+                        style = typography.titleSmall
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isGranted) "已授予" else "未授予",
-                        color = if (isGranted) Color(0xFF4CAF50) else Color(0xFFF44336),
-                        fontWeight = FontWeight.Bold
-                    )
+                    val labelColor = if (isGranted) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    Row(
+                        Modifier
+                            .height(16.dp)
+                            .clip(shape = RoundedCornerShape(8.dp))
+                            .background(color = labelColor),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = "Status Icon",
+                            tint = colorScheme.onSurface,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = if (isGranted) "已授予" else "未授予",
+                            color = colorScheme.onSurface,
+                            style = typography.labelSmall.copy(
+                                fontSize = 8.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = description, style = typography.bodySmall)
             }
             if (!isGranted) {
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(onClick = onRequest) {
-                    Text("去开启")
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(
+                    border = BorderStroke(1.dp, color = colorScheme.primary.copy(0.5f)),
+                    onClick = onRequest
+                ) {
+                    Text("授予", style = typography.bodySmall)
                 }
             }
         }
@@ -290,8 +313,8 @@ private fun checkReadWritePermissions(context: Context): Boolean {
         Manifest.permission.READ_EXTERNAL_STORAGE
     )
 
-    return writePermission == android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            readPermission == android.content.pm.PackageManager.PERMISSION_GRANTED
+    return writePermission == PackageManager.PERMISSION_GRANTED &&
+            readPermission == PackageManager.PERMISSION_GRANTED
 }
 
 @Preview(showBackground = true)

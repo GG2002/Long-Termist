@@ -66,7 +66,6 @@ class TidbCloudYearlyMemoirRepositoryImpl(
             detail = detail,
         ).toRequest()
         detailDao.upsertDetail(detailEntity)
-        println("33333333333333333333333333333")
     }
 
     override suspend fun deleteDetail(detail: Detail) {

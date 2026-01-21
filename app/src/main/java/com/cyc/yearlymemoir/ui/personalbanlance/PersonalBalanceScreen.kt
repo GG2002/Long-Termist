@@ -1,11 +1,13 @@
 package com.cyc.yearlymemoir.ui.personalbanlance
 
 import AutoCollectBalanceCard
+import LedgerChartCard
 import android.annotation.SuppressLint
 import android.app.Application
 import android.os.Environment
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,15 +16,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +49,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,7 +58,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +72,7 @@ import java.util.Locale
 
 class PersonalBalanceViewModel(application: Application) : AndroidViewModel(application) {
     private val model = MainApplication.repository
-    private val ds = MainActivity.ds
+    private val ds = MainApplication.ds
 
     private val _allBalance = MutableStateFlow(0.0)
     val allBalance: StateFlow<Double> = _allBalance
@@ -91,7 +96,6 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
             val total = balances.sumOf { it.balance }
             _allBalance.value = total
             _lastUpdated.value = ds.getLong("last_update_time")
-            println("last_update_time: ${_lastUpdated.value}")
         }
     }
 
@@ -119,7 +123,6 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
                     val date = parts[1].trim()
                     val balanceStr = parts[2].trim()
                     val balance = balanceStr.toDoubleOrNull()
-                    println(balance)
                     if (balance != null) {
                         try {
                             model.upsertBalance(
@@ -206,6 +209,7 @@ fun PersonalBalanceScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var showImportSheet by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
+    var showDualSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -306,24 +310,54 @@ fun PersonalBalanceScreen(
                 )
                 .verticalScroll(scrollState),
         ) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)) {
-                    BanlanceChartCard(refreshTick = refreshTick)
-                }
-            }
+            LedgerChartCard()
+            Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(20.dp))
+            BanlanceChartCard(refreshTick = refreshTick)
+            Spacer(Modifier.height(12.dp))
 
             AutoCollectBalanceCard(
                 refreshAllBalanceCallBack = { viewModel.refreshAll() },
                 refreshTick = refreshTick
             )
+            Spacer(Modifier.height(12.dp))
+
+            Spacer(Modifier.height(48.dp))
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 36.dp)
+                    .clip(RoundedCornerShape(24.dp))
+            ) {
+                // 圆形 + 号按钮
+                FloatingActionButton(
+                    onClick = { showDualSheet = true },
+                    shape = CircleShape,
+                    containerColor = colorScheme.primary,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "添加",
+                        tint = Color.White
+                    )
+                }
+            }
         }
     }
+
+    // 统一的双层 Sheet 组件
+    DualActionSheets(
+        show = showDualSheet,
+        onDismissAll = { showDualSheet = false }
+    )
 
     if (showImportSheet) {
         ModalBottomSheet(

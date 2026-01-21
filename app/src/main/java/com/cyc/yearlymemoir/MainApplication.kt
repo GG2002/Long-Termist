@@ -35,10 +35,12 @@ class MainApplication : Application() {
 
         lateinit var ds: DatastoreInit
         lateinit var repository: YearlyMemoirRepository
+        lateinit var instance: MainApplication
     }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         initializeData()
         createNotificationChannel()
     }

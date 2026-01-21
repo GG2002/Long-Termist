@@ -21,21 +21,24 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.HorizontalRule
+import androidx.compose.material.icons.filled.LineAxis
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -243,10 +246,6 @@ fun BanlanceChartCard(
     val lastMonthCost by viewModel.lastMonthCost.collectAsStateWithLifecycle()
     val lastYearCost by viewModel.lastYearCost.collectAsStateWithLifecycle()
 
-    val metrics = Pair(
-        "余额变动", balanceChartData
-    )
-
     LaunchedEffect(Unit) {
         viewModel.firstLoadBalanceDetails()
     }
@@ -255,9 +254,11 @@ fun BanlanceChartCard(
         viewModel.firstLoadBalanceDetails()
     }
 
-    Column {
+    Card {
         Column(
-            modifier = Modifier,
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .padding(top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -265,10 +266,29 @@ fun BanlanceChartCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = metrics.first, // "余额变动"
-                    style = MaterialTheme.typography.titleMedium, color = colorScheme.onSurface
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.LineAxis,
+                        contentDescription = "现金资产变动",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(
+                                Color(0xFF109367).copy(
+                                    alpha = 0.2f
+                                ), shape = CircleShape
+                            )
+                            .padding(4.dp),
+                        tint = Color(0xFF109367)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "现金资产",
+                        style = typography.titleMedium.copy(
+                            color = colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        ),
+                    )
+                }
                 TimePeriodSwitcher { selectIndex ->
                     viewModel.loadBalanceDetails(
                         when (selectIndex) {
@@ -292,62 +312,67 @@ fun BanlanceChartCard(
                     CircularProgressIndicator()
                 }
             } else {
-                val content = remember(metrics) {
-                    movableContentOf {
-                        // 图表颜色现在完全由 colorScheme 控制
-                        LineChart(
-                            modifier = Modifier
-                                .width(500.dp)
-                                .height(220.dp),
-                            data = listOf(
-                                Line(
-                                    label = metrics.first,
-                                    values = metrics.second.map { it.second },
-                                    // 折线颜色使用主强调色
-                                    color = SolidColor(colorScheme.primary),
-                                    curvedEdges = false,
-                                    drawStyle = DrawStyle.Stroke(width = 2.dp),
-                                    // 渐变填充的起始色使用带透明度的主强调色
-                                    firstGradientFillColor = colorScheme.primary.copy(alpha = .4f),
-                                    secondGradientFillColor = Color.Transparent,
-                                    strokeAnimationSpec = tween(
-                                        750,
-                                        easing = FastOutSlowInEasing
-                                    ),
-                                    gradientAnimationDelay = 100,
-                                )
+                LineChart(
+                    modifier = Modifier
+                        .width(500.dp)
+                        .height(180.dp),
+                    data = listOf(
+                        Line(
+                            label = "现金资产变动",
+                            values = balanceChartData.map { it.second },
+                            // 折线颜色使用主强调色
+                            color = SolidColor(colorScheme.primary),
+                            curvedEdges = false,
+                            drawStyle = DrawStyle.Stroke(width = 1.dp),
+                            // 渐变填充的起始色使用带透明度的主强调色
+                            firstGradientFillColor = colorScheme.primary.copy(alpha = .4f),
+                            secondGradientFillColor = Color.Transparent,
+                            strokeAnimationSpec = tween(
+                                750,
+                                easing = FastOutSlowInEasing
                             ),
-                            indicatorProperties = HorizontalIndicatorProperties(textStyle = MaterialTheme.typography.bodySmall.copy(
-                                color = colorScheme.onSurface
-                            ), contentBuilder = { it.format(0) }),
-                            labelProperties = LabelProperties(
-                                enabled = true,
-                                textStyle = MaterialTheme.typography.labelSmall.copy(
-                                    color = colorScheme.onSurface
-                                ),
-                                labels = metrics.second.map { it.first }.sampleUpToN(7)
-                            ),
-                            // 左上角的 legend 标，展示单个指标的时候当然要禁掉
-                            labelHelperProperties = LabelHelperProperties(
-                                enabled = false,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    color = colorScheme.onSurface
-                                ),
-                            ),
-                            minValue = max(
-                                metrics.second.minOfOrNull { it.second }?.minus(100)
-                                    ?: 0.0, 0.0
-                            ),
-                            maxValue = metrics.second.maxOfOrNull { it.second }?.plus(100)
-                                ?: 0.0,
+                            gradientAnimationDelay = 100,
                         )
-                    }
-                }
-
-                content()
+                    ),
+                    indicatorProperties = HorizontalIndicatorProperties(
+                        enabled = true,
+                        padding = 6.dp,
+                        textStyle = typography.bodySmall.copy(
+                            fontSize = 9.sp,
+                            color = colorScheme.onSurfaceVariant
+                        ),
+                        contentBuilder = { it.format(0) }
+                    ),
+                    labelProperties = LabelProperties(
+                        enabled = true,
+                        padding = 2.dp,
+                        textStyle = typography.labelSmall.copy(
+                            fontSize = 7.sp,
+                            color = colorScheme.onSurfaceVariant
+                        ),
+                        labels = balanceChartData.map { it.first }.sampleUpToN(7)
+                    ),
+                    // 左上角的 legend 标，展示单个指标的时候当然要禁掉
+                    labelHelperProperties = LabelHelperProperties(
+                        enabled = false,
+                        textStyle = typography.bodyMedium.copy(
+                            color = colorScheme.onSurface
+                        ),
+                    ),
+                    minValue = max(
+                        balanceChartData.minOfOrNull { it.second }?.minus(100)
+                            ?: 0.0, 0.0
+                    ),
+                    maxValue = balanceChartData.maxOfOrNull { it.second }?.plus(100)
+                        ?: 0.0,
+                )
             }
 
-            Spacer(Modifier.height(10.dp))
+
+            Spacer(modifier = Modifier.height(9.dp))
+            HorizontalDivider(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(9.dp))
+
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -358,6 +383,7 @@ fun BanlanceChartCard(
                 CostColumn("昨日", yesterdayCost)
             }
 
+            Spacer(modifier = Modifier.height(18.dp))
         }
     }
 }
@@ -477,19 +503,22 @@ fun TimePeriodSwitcher(onClick: (Int) -> Unit) {
 
 
 @Composable
-fun CostColumn(name: String, cost: Double, width: Int = 90, fontSize: Int = 14) {
+fun CostColumn(name: String, cost: Double) {
     val (colo: Color, ico: ImageVector) = when {
         cost < 0 -> Pair(Color.Red, Icons.Filled.ArrowDropDown)
-        cost == 0.0 -> Pair(Color.Gray, Icons.Filled.HorizontalRule)
+        cost == 0.0 -> Pair(Color.Gray, Icons.Filled.MoreHoriz)
         else -> Pair(Color(0xFF18A656), Icons.Filled.ArrowDropUp)
     }
     Column(
-        Modifier.width(width.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        Modifier,
+        horizontalAlignment = Alignment.Start
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                name, fontSize = fontSize.sp
+                name,
+                style = typography.bodySmall.copy(
+                    fontWeight = FontWeight.Bold
+                ),
             )
             Icon(
                 imageVector = ico,
@@ -499,9 +528,11 @@ fun CostColumn(name: String, cost: Double, width: Int = 90, fontSize: Int = 14) 
             )
         }
         Text(
-            abs(cost).format(2),
-            fontSize = (fontSize + 4).sp,
-            color = colo,
+            "￥" + abs(cost).format(2),
+            style = typography.bodySmall.copy(
+                fontSize = 12.sp,
+                color = colo,
+            ),
         )
     }
 }

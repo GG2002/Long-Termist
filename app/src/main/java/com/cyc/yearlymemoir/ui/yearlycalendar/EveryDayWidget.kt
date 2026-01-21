@@ -37,7 +37,6 @@ fun EveryDayWidgetContent() {
     val today = LocalDate.now()
     val (solar, weekday, lunar) = formatDateComponents(today) // 复用你的数据函数
     val nearestEvent = getNearestYearlyEvent()
-    val metrics = getFavoriteMetrics()
     val daysUntilEvent = ChronoUnit.DAYS.between(today, nearestEvent.targetDate)
 
     // Glance 没有 Card，我们用 Column + background + cornerRadius 模拟

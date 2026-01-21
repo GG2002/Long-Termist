@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +21,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.HorizontalRule
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -60,6 +63,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -95,7 +99,7 @@ import kotlin.math.abs
 class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(application) {
     // ViewModel implementation
     private val model = MainApplication.repository
-    private val ds = MainActivity.ds
+    private val ds = MainApplication.ds
 
     // 定时任务开关
     private val _isScheduled = MutableStateFlow(false)
@@ -204,7 +208,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     _channelSpends.value = _channelSpends.value.toMutableMap().apply {
                         this[BalanceChannelType.ZFB] = 0.0
                     }
-                    MainActivity.ds.resetTodayBalance(BalanceChannelType.ZFB)
+                    MainApplication.ds.resetTodayBalance(BalanceChannelType.ZFB)
                 }
 
                 BalanceChannelType.WX -> {
@@ -217,7 +221,7 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     _channelSpends.value = _channelSpends.value.toMutableMap().apply {
                         this[BalanceChannelType.WX] = 0.0
                     }
-                    MainActivity.ds.resetTodayBalance(BalanceChannelType.WX)
+                    MainApplication.ds.resetTodayBalance(BalanceChannelType.WX)
                 }
 
                 BalanceChannelType.YSF -> {
@@ -230,14 +234,14 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
                     _channelSpends.value = _channelSpends.value.toMutableMap().apply {
                         this[BalanceChannelType.YSF] = 0.0
                     }
-                    MainActivity.ds.resetTodayBalance(BalanceChannelType.YSF)
+                    MainApplication.ds.resetTodayBalance(BalanceChannelType.YSF)
                 }
 
                 BalanceChannelType.ALL -> {
                     _channelHistories.value = emptyMap()
                     _channelBalances.value = emptyMap()
                     _channelSpends.value = emptyMap()
-                    MainActivity.ds.resetTodayBalance(BalanceChannelType.ALL)
+                    MainApplication.ds.resetTodayBalance(BalanceChannelType.ALL)
                 }
             }
             refreshChartData()
@@ -389,24 +393,40 @@ fun AutoCollectBalanceCard(
     var showSettings by remember { mutableStateOf(false) }
 
 
-    Card(
-        modifier = Modifier
-    ) {
+    Card {
         Column(
             modifier = Modifier
-                .padding(start = 10.dp, top = 0.dp, bottom = 0.dp)
+                .padding(horizontal = 20.dp)
+                .padding(top = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "余额来源统计",
-                    style = typography.titleMedium,
-                    color = colorScheme.onSurface,
-                    modifier = Modifier
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Hub,
+                        contentDescription = "资产统计",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(
+                                // 更淡一些的蓝色
+                                Color(0xFF468AF6).copy(
+                                    alpha = 0.2f
+                                ), shape = CircleShape
+                            )
+                            .padding(4.dp),
+                        tint = Color(0xFF468AF6)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "资产统计",
+                        style = typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                    )
+                }
                 Button(
                     onClick = { showSettings = true },
                     colors = ButtonColors(
@@ -421,12 +441,10 @@ fun AutoCollectBalanceCard(
             }
 
             // 环形图（放在标题下、列表上方）
-            Spacer(modifier = Modifier.height(8.dp))
             PieChart(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp)
-                    .padding(horizontal = 8.dp),
+                    .height(140.dp),
                 data = chartData,
                 onPieClick = {
                     val pieIndex = chartData.indexOf(it)
@@ -434,7 +452,7 @@ fun AutoCollectBalanceCard(
                 },
                 selectedScale = 1.2f,
                 selectedPaddingDegree = 4f,
-                scaleAnimEnterSpec = spring<Float>(
+                scaleAnimEnterSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
                     stiffness = Spring.StiffnessLow
                 ),
@@ -444,18 +462,17 @@ fun AutoCollectBalanceCard(
                 spaceDegreeAnimExitSpec = tween(300),
                 style = Pie.Style.Stroke(30.dp),
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(), // 或者是 wrapContentHeight
-                verticalArrangement = Arrangement.spacedBy(8.dp) // 对应你原来的 verticalArrangement
+                verticalArrangement = Arrangement.spacedBy(4.dp) // 对应你原来的 verticalArrangement
             ) {
                 // 既然只有 1 列，直接遍历数据生成组件即可
                 supportedBalanceChannelTypes.forEach { balanceChannelType ->
                     BalanceItem(balanceChannelType, refreshAllBalanceCallBack)
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -467,12 +484,15 @@ fun AutoCollectBalanceCard(
                         .weight(1f)
                         .padding(start = 10.dp),
                     text = "* 长按应用图标即可重新统计该应用余额",
-                    style = typography.labelSmall,
-                    color = colorScheme.onSurfaceVariant,
+                    style = typography.labelSmall.copy(
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.W200,
+                        color = colorScheme.onSurfaceVariant,
+                    ),
                 )
                 Button(
                     onClick = {
-                        MainActivity.ds.putLong("last_update_time", 0)
+                        MainApplication.ds.putLong("last_update_time", 0)
                         if (!AssistsCore.isAccessibilityServiceEnabled()) {
                             AssistsCore.openAccessibilitySetting()
                             return@Button
@@ -538,7 +558,7 @@ private fun SettingsBottomSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val ds = MainActivity.ds
+    val ds = MainApplication.ds
 
     val allChannels = listOf(BalanceChannelType.ZFB, BalanceChannelType.WX, BalanceChannelType.YSF)
 
@@ -718,14 +738,13 @@ fun BalanceItem(
             Text(
                 text = balanceType.displayName,
                 style = typography.bodySmall,
+                color = colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         }
 
         // 右侧组：花费（右对齐） + 余额（左对齐）
         Row(
-            modifier = Modifier
-                .width(160.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
@@ -736,29 +755,31 @@ fun BalanceItem(
             }
 
 
-            // 花费（右对齐）
+            // 花费
             Row(
                 modifier = Modifier.width(80.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
                 Icon(
+                    modifier = Modifier
+                        .width((typography.bodySmall.fontSize.value).dp),
                     imageVector = ico,
                     contentDescription = balanceType.displayName + "趋势",
                     tint = spendColor,
-                    modifier = Modifier.size((typography.bodySmall.fontSize.value + 4).dp)
                 )
                 Spacer(modifier = Modifier.width(2.dp))
                 Text(
                     text = formatSpend(abs(spend)),
-                    style = typography.bodySmall,
+                    style = typography.bodySmall.copy(
+                        fontSize = (typography.bodySmall.fontSize.value - 2).sp
+                    ),
                     color = spendColor
                 )
             }
             Spacer(modifier = Modifier.width(2.dp))
-            // 余额（左对齐）
+            // 余额
             Row(
-                modifier = Modifier.width(80.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start
             ) {
@@ -911,7 +932,7 @@ fun balanceItemLongPressHandler(
     viewModel.resetCacheBalance(channelType)
     Log.d(
         "获取余额是否需要更新",
-        "${channelType.displayName}：${viewModel.channelBalances.value[channelType] ?: 0.0} 需要更新：" + MainActivity.ds.shouldUpdateBalance(
+        "${channelType.displayName}：${viewModel.channelBalances.value[channelType] ?: 0.0} 需要更新：" + MainApplication.ds.shouldUpdateBalance(
             channelType
         )
     )

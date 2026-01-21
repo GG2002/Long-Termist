@@ -2,9 +2,7 @@ package com.cyc.yearlymemoir.workers
 
 import android.content.Context
 import androidx.work.WorkerParameters
-import com.cyc.yearlymemoir.MainActivity
-import com.cyc.yearlymemoir.MainActivity.Companion.appContext
-import com.cyc.yearlymemoir.MainActivity.Companion.ds
+import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
 import com.cyc.yearlymemoir.services.OverlayConfirmManager
 import com.cyc.yearlymemoir.utils.LogRecorder
@@ -55,7 +53,7 @@ class GetAppBalanceWorker(appContext: Context, workerParams: WorkerParameters) :
 
 
     suspend fun checkAndUpdateIfNeeded(context: Context): Boolean {
-        val ds = MainActivity.ds // 假设 ds 是线程安全的
+        val ds = MainApplication.ds
         val lastUpdateTime = ds.getLong("last_update_time")
 
         // 核心逻辑：判断上次更新是否在今天之前
@@ -117,10 +115,10 @@ class GetAppBalanceWorker(appContext: Context, workerParams: WorkerParameters) :
 
         return withContext(Dispatchers.IO) {
             try {
-                if (!checkAndUpdateIfNeeded(appContext)) {
+                if (!checkAndUpdateIfNeeded(applicationContext)) {
                     return@withContext Result.success()
                 }
-                ds.resetTodayBalance(BalanceChannelType.ALL)
+                MainApplication.ds.resetTodayBalance(BalanceChannelType.ALL)
 
                 val deferred = CompletableDeferred<String>()
 

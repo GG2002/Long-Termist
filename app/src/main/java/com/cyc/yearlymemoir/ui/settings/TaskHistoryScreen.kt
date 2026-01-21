@@ -38,7 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.cyc.yearlymemoir.MainActivity
+import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.data.AppDatabase
 import com.cyc.yearlymemoir.data.TaskExecutionLog
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +48,7 @@ import java.util.Locale
 
 @Composable
 fun TaskHistoryScreen(tag: String) {
-    val context = MainActivity.appContext
+    val context = MainApplication.instance
     val scope = rememberCoroutineScope()
 
     var logs by remember { mutableStateOf<List<TaskExecutionLog>>(emptyList()) }

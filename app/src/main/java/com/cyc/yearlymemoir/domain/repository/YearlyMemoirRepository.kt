@@ -59,6 +59,8 @@ interface YearlyMemoirRepository {
 
     // Transaction APIs (split income/expense)
     suspend fun upsertTransaction(record: TransactionRecord)
+    suspend fun deleteTransaction(id: Int)
+    suspend fun getAllTransactionsDesc(): List<TransactionRecord>
     suspend fun getAllIncomes(): List<TransactionRecord>
     suspend fun getAllExpenses(): List<TransactionRecord>
     suspend fun getIncomesByDate(date: String): List<TransactionRecord>

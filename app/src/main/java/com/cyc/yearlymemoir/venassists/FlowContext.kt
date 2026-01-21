@@ -1,7 +1,6 @@
 package com.cyc.yearlymemoir.venassists
 
 import android.content.Context
-import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
 import kotlinx.coroutines.CompletableDeferred
 
@@ -9,8 +8,8 @@ import kotlinx.coroutines.CompletableDeferred
  * 用于在各个 Flow 之间共享状态和工具
  */
 class FlowContext {
-    val context: Context = MainActivity.appContext
-    val ds = MainActivity.ds
+    val context: Context = MainApplication.instance
+    val ds = MainApplication.ds
     val model = MainApplication.repository
 
     // 全局共享的 deferred，用于最后通知结束

@@ -1,4 +1,4 @@
-package com.cyc.yearlymemoir.ui.yearlycalendar
+package com.cyc.yearlymemoir.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -55,7 +55,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,8 +72,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_NUM
@@ -83,7 +80,8 @@ import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_TEXT
 import com.cyc.yearlymemoir.domain.model.Field
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.model.YearlyDetail
-import com.cyc.yearlymemoir.ui.UniversalDatePicker
+import com.cyc.yearlymemoir.ui.personalbanlance.AssetSummaryCard
+import com.cyc.yearlymemoir.ui.utils.UniversalDatePicker
 import com.cyc.yearlymemoir.utils.formatDateComponents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,7 +92,7 @@ import java.time.temporal.ChronoUnit
 // 主界面入口
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EveryDayScreen() {
+fun HomeScreen() {
     val navController = MainActivity.navController
     val sheetState: SheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded, skipHiddenState = true // 通常我们不希望卡片能被完全隐藏
@@ -114,14 +112,12 @@ fun EveryDayScreen() {
         scaffoldState = scaffoldState,
         sheetPeekHeight = 150.dp,
         topBar = {
-            TopAppBar(
-                title = {
-                    DateHeader(solar = solar, weekday = weekday, lunar = lunar)
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colorScheme.primaryContainer,
-                    titleContentColor = colorScheme.onPrimaryContainer,
-                ), // ✨ 设置背景色
+            TopAppBar(title = {
+                DateHeader(solar = solar, weekday = weekday, lunar = lunar)
+            }, colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = colorScheme.primaryContainer,
+                titleContentColor = colorScheme.onPrimaryContainer,
+            ), // ✨ 设置背景色
                 actions = {
                     IconButton(onClick = { navController.navigate("PermissionScreen") }) {
                         Icon(Icons.Default.Settings, contentDescription = "菜单")
@@ -141,8 +137,7 @@ fun EveryDayScreen() {
         },
         sheetContent = {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 val isExpanded = sheetState.targetValue == SheetValue.Expanded
                 val iconRotation by animateFloatAsState(
@@ -159,10 +154,9 @@ fun EveryDayScreen() {
                 // + 按钮，放到后面才能让其浮在上面两个组件的上面
                 if (formState.temporaryInputValue.isNotBlank()) {
                     var isLoading by remember { mutableStateOf(false) }
-                    Button(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(horizontal = 16.dp),
+                    Button(modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 16.dp),
                         colors = ButtonColors(
                             containerColor = colorScheme.secondaryContainer,
                             contentColor = colorScheme.onSecondaryContainer,
@@ -246,30 +240,22 @@ fun EveryDayScreen() {
         }) {
 
         // 指标图表区域
-        val metrics by remember { mutableStateOf(getFavoriteMetrics()) }
         val scrollState = rememberScrollState()
 
-        val content = remember(metrics) {
-            movableContentOf {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(color = colorScheme.surface)
-                        .padding(horizontal = 18.dp)
-                        .verticalScroll(scrollState),
-                ) {
-                    Spacer(modifier = Modifier.height(4.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = colorScheme.surface)
+                .padding(horizontal = 18.dp)
+                .verticalScroll(scrollState),
+        ) {
+            Spacer(modifier = Modifier.height(4.dp))
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    MetricsChartSection(
-                        metrics = metrics,
-                        navController = navController
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            AssetSummaryCard()
+
+            Spacer(modifier = Modifier.height(160.dp))
         }
-        content()
-        Spacer(modifier = Modifier.height(24.dp))
 
         if (sheetState.targetValue == SheetValue.Expanded) {
             Box(
@@ -336,25 +322,20 @@ fun UpcomingEventSection(showed: Boolean) {
     val daysUntilEvent = ChronoUnit.DAYS.between(today, LocalDate.of(2025, 7, 1))
     val navController = MainActivity.navController
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(top = 4.dp)
-            .alpha(if (showed) 1f else 0f)
-            .then(
-                if (showed) {
-                    Modifier
-                        .pointerInput(Unit) {
-                            detectTapGestures(onTap = {
-                                navController.navigate("YearlyCalendar")
-                            })
-                        }
-                } else {
-                    Modifier // 不可见时，不添加任何手势处理
-                }
-            )
-    ) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp)
+        .padding(top = 4.dp)
+        .alpha(if (showed) 1f else 0f)
+        .then(if (showed) {
+            Modifier.pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    navController.navigate("YearlyCalendar")
+                })
+            }
+        } else {
+            Modifier // 不可见时，不添加任何手势处理
+        })) {
         Text(
             text = "下一个期待",
             style = typography.titleMedium,
@@ -388,10 +369,7 @@ fun UpcomingEventSection(showed: Boolean) {
 data class ReminderFormState(
     // 当前选中的类型，默认为提醒日程
     var selectedField: Field = Field(
-        fieldId = 1,
-        fieldName = "提醒我",
-        fieldType = FIELD_TYPE_TEXT,
-        groupId = 0
+        fieldId = 1, fieldName = "提醒我", fieldType = FIELD_TYPE_TEXT, groupId = 0
     ),
     // 输入框的内容
     var inputValue: String = "",
@@ -439,13 +417,15 @@ fun CustomInputTable(
         val field = MainApplication.repository.getFieldByName(selectedField.fieldName)
         val detail = if (isRepeatAnnuallyChecked) {
             val mdStr = universalDate.getRawMDDate().toString()
-            MainApplication.repository
-                .getYearlyDetailByFieldAndMdDate(field!!.fieldId, mdStr)
-                ?.detail ?: ""
+            MainApplication.repository.getYearlyDetailByFieldAndMdDate(
+                field!!.fieldId,
+                mdStr
+            )?.detail ?: ""
         } else {
-            MainApplication.repository
-                .getDetailByFieldAndUniversalDate(field!!.fieldId, universalDate)
-                ?.detail ?: ""
+            MainApplication.repository.getDetailByFieldAndUniversalDate(
+                field!!.fieldId,
+                universalDate
+            )?.detail ?: ""
         }
 
         val temp = reminderFormState.temporaryInputValue
@@ -523,8 +503,7 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it,
-                                        temporaryInputValue = it
+                                        inputValue = it, temporaryInputValue = it
                                     )
                                 )
                             },
@@ -548,8 +527,7 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it,
-                                        temporaryInputValue = it
+                                        inputValue = it, temporaryInputValue = it
                                     )
                                 )
                             },
@@ -573,8 +551,7 @@ fun CustomInputTable(
                             onValueChange = {
                                 onFormStateChange(
                                     reminderFormState.copy(
-                                        inputValue = it,
-                                        temporaryInputValue = it
+                                        inputValue = it, temporaryInputValue = it
                                     )
                                 )
                             },

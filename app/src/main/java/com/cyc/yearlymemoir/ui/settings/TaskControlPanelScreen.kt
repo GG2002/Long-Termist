@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.cyc.yearlymemoir.MainActivity
+import com.cyc.yearlymemoir.MainApplication
 import com.cyc.yearlymemoir.WorkScheduler
 
 /**
@@ -35,7 +36,7 @@ import com.cyc.yearlymemoir.WorkScheduler
  */
 @Composable
 fun TaskControlPanelScreen() {
-    val context = MainActivity.appContext
+    val context = MainApplication.instance
 
     // 使用 WorkScheduler 的注册表
     val tasks = WorkScheduler.registry.map { TaskMeta(it.tag, it.name, it.description) }
@@ -44,10 +45,10 @@ fun TaskControlPanelScreen() {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-    Column(
+        Column(
             modifier = Modifier
-        .fillMaxSize()
-        .statusBarsPadding()
+                .fillMaxSize()
+                .statusBarsPadding()
                 .padding(16.dp),
             verticalArrangement = Arrangement.Top
         ) {
