@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -50,6 +49,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.data.local.db.TmpFinanceDataBase
 import com.cyc.yearlymemoir.domain.model.TransactionRecord
 import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
 import ir.ehsannarmani.compose_charts.extensions.format
@@ -89,7 +89,11 @@ class MonthlyLedgerViewModel() : ViewModel() {
             // 2. 查询当天的余额之和，查不到就算了
             val todayBalances =
                 runCatching { repo.getBalancesByDate(today.format(dateFormatter)) }.getOrElse { emptyList() }
-            val todayBalanceSum = todayBalances.sumOf { it.balance }
+            // 将 Finance Asset 最新总额并入“今日余额”
+            val assetTotal = runCatching {
+                TmpFinanceDataBase.get(MainApplication.instance).financeAssetDao().getLatestTotalAmount()
+            }.getOrElse { 0.0 }
+            val todayBalanceSum = todayBalances.sumOf { it.balance } + assetTotal
 
             // 3. 计算余额变动数字（两个都查到才有效，否则为 0）
             val balanceDelta = if (monthBaselineBalanceSum != null) {
@@ -172,7 +176,6 @@ class MonthlyLedgerViewModel() : ViewModel() {
                 runCatching { repo.getBalancesByDate(cursor.format(dateFormatter)) }.getOrElse { emptyList() }
             val hasData = balances.isNotEmpty()
             val isInMonth = YearMonth.from(cursor) == month
-            println("333 $cursor $firstInMonth")
 
             if (isInMonth) {
                 if (hasData) {
@@ -227,9 +230,16 @@ class MonthlyLedgerViewModel() : ViewModel() {
 
 
 @Composable
-fun LedgerChartCard(viewModel: MonthlyLedgerViewModel = viewModel()) {
+fun LedgerChartCard(
+    refreshTick: Int,
+    viewModel: MonthlyLedgerViewModel = viewModel()
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
+        viewModel.load()
+    }
+    // 父组件触发刷新：监听 refreshTick
+    LaunchedEffect(refreshTick) {
         viewModel.load()
     }
 
@@ -607,17 +617,4 @@ fun SummaryStatisticsCard() {
             }
         }
     }
-}
-
-@Preview(
-    showBackground = true,  // 显示背景，这样能看清卡片轮廓
-    backgroundColor = 0xFFF0F0F0, // 稍微设一点灰，让卡片白色/浅色背景更明显
-    name = "Light Mode"
-)
-@Composable
-fun LedgerChartCardPreview() {
-    // 假设你的主题叫 AppTheme，一定要包一层
-    // AppTheme {
-    LedgerChartCard()
-    // }
 }

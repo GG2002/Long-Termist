@@ -3,8 +3,8 @@ package com.cyc.yearlymemoir.workers
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.cyc.yearlymemoir.data.AppDatabase
-import com.cyc.yearlymemoir.data.TaskExecutionLog
+import com.cyc.yearlymemoir.data.local.db.DebugInfoDatabase
+import com.cyc.yearlymemoir.data.local.entity.TaskExecutionLog
 import com.cyc.yearlymemoir.utils.LogRecorder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,7 +15,7 @@ abstract class BaseMonitorWorker(appContext: Context, params: WorkerParameters) 
     abstract suspend fun doActualWork(): Result
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val db = AppDatabase.get(applicationContext)
+        val db = DebugInfoDatabase.get(applicationContext)
         val dao = db.taskExecutionLogDao()
 
         val workId = id.toString()

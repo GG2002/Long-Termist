@@ -174,7 +174,7 @@ fun PermissionScreen() {
         )
     }
 
-    // 2. 为每个权限创建一个状态，用于驱动UI更新
+    // 2. 为每个权限创建一个状态，用于驱动 UI 更新
     val permissionStates = permissionActions.associate {
         it.title to remember { mutableStateOf(it.isGranted(context)) }
     }
@@ -321,8 +321,8 @@ private fun checkReadWritePermissions(context: Context): Boolean {
 @Composable
 fun PermissionScreenPreview() {
     MaterialTheme {
-        // 这是一个纯UI预览，不包含真实逻辑
-        // 你可以在这里模拟各种权限状态来测试UI
+        // 这是一个纯 UI 预览，不包含真实逻辑
+        // 你可以在这里模拟各种权限状态来测试 UI
         PermissionScreen()
     }
 }

@@ -5,8 +5,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.util.Log
-import com.cyc.yearlymemoir.data.local.db.AppDatabase
+import com.cyc.yearlymemoir.data.local.db.CoreDatabase
+import com.cyc.yearlymemoir.data.local.db.FinanceDatabase
 import com.cyc.yearlymemoir.data.repository.LocalYearlyMemoirRepository
 import com.cyc.yearlymemoir.domain.repository.DatastoreInit
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.WX_ENABLED
@@ -15,15 +15,11 @@ import com.cyc.yearlymemoir.domain.repository.YearlyMemoirRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 class MainApplication : Application() {
 
     // 创建应用级的协程作用域
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    // 懒加载数据库实例
-    val database by lazy { AppDatabase.getInstance(this, applicationScope) }
 
     // tidb cloud 客户端
     // val dbClient by lazy { DbClient() }
@@ -46,12 +42,16 @@ class MainApplication : Application() {
     }
 
     private fun initializeData() {
+        // 懒加载数据库实例
+        val coreDatabase by lazy { CoreDatabase.getInstance(this, applicationScope) }
+        val financeDatabase by lazy { FinanceDatabase.getInstance(this) }
+
         val localRepo = LocalYearlyMemoirRepository(
-            database.detailDao(),
-            database.yearlyDetailDao(),
-            database.fieldDao(),
-            database.balanceDao(),
-            database.transactionDao(),
+            coreDatabase.detailDao(),
+            coreDatabase.yearlyDetailDao(),
+            coreDatabase.fieldDao(),
+            financeDatabase.balanceDao(),
+            financeDatabase.transactionDao(),
         )
         ds = DatastoreInit(applicationContext)
         if (ds.getString(WX_ENABLED).isNullOrBlank()) {

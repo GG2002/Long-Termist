@@ -68,6 +68,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.data.local.entity.FinanceAsset
 import com.cyc.yearlymemoir.domain.model.TransactionRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -200,24 +201,75 @@ private fun ActionCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AssetInputSheet(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onConfirmed: () -> Unit = {}
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = null
     ) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val db = remember { com.cyc.yearlymemoir.data.local.db.TmpFinanceDataBase.get(context) }
+        val scope = rememberCoroutineScope()
+
+        var name by remember { mutableStateOf("") }
+        var amountStr by remember { mutableStateOf("") }
+        val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val todayStr =
+            remember { LocalDate.now(ZoneOffset.UTC).format(dateFormatter) }
+        var dateStr by remember { mutableStateOf(todayStr) }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(text = "资产录入", style = MaterialTheme.typography.titleMedium)
+            Text(text = "资产录入", style = typography.titleMedium)
             Spacer(Modifier.height(12.dp))
-            Text(
-                text = "这里将展示资产账户、币种、持仓等表单（占位）",
-                style = MaterialTheme.typography.bodyMedium
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("资产名称") }
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = amountStr,
+                onValueChange = { amountStr = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("资产金额") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = dateStr,
+                onValueChange = {},
+                modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
+                label = { Text("记录日期") }
             )
             Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("取消") }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = {
+                    val amt = amountStr.trim().toDoubleOrNull() ?: return@Button
+                    val asset = FinanceAsset(
+                        asset_name = name.trim(),
+                        asset_amount = amt,
+                        record_date = dateStr
+                    )
+                    scope.launch {
+                        db.financeAssetDao().insert(asset)
+
+                        onConfirmed()
+                        onDismiss()
+                    }
+                }) { Text("保存") }
+            }
         }
     }
 }
@@ -226,7 +278,8 @@ private fun AssetInputSheet(
 @Composable
 private fun BookkeepingSheet(
     onDismiss: () -> Unit,
-    initial: TransactionRecord? = null
+    initial: TransactionRecord? = null,
+    onConfirmed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(
@@ -330,7 +383,8 @@ private fun BookkeepingSheet(
                 onConfirmResult = { amount = it },
                 onTypeChange = { expense -> isExpense = expense },
                 initialValue = amountInitial,
-                initialIsExpense = isExpenseInitial
+                initialIsExpense = isExpenseInitial,
+                onConfirmed = { onConfirmed() }
             )
             Spacer(Modifier.height(12.dp))
 
@@ -429,6 +483,8 @@ private fun BookkeepingSheet(
                                     "BookingSheet",
                                     "已保存：${if (isExpense) "支出" else "收入"} $finalAmount，日期：$date，备注：${rec.remark}，标签：$tag"
                                 )
+                                // 通知上层动作已完成（用于触发 refreshTick）
+                                withContext(Dispatchers.Main) { onConfirmed() }
                                 onDismiss()
                             } catch (e: Exception) {
                                 Log.e("BookingSheet", "保存失败：${e.message}")
@@ -444,9 +500,10 @@ private fun BookkeepingSheet(
 @Composable
 fun BookkeepingSheetWithInitial(
     initial: TransactionRecord?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onConfirmed: () -> Unit = {}
 ) {
-    BookkeepingSheet(onDismiss = onDismiss, initial = initial)
+    BookkeepingSheet(onDismiss = onDismiss, initial = initial, onConfirmed = onConfirmed)
 }
 
 @Composable
@@ -455,7 +512,8 @@ fun AmountCalculatorInput(
     onConfirmResult: (String) -> Unit = { _ -> },
     onTypeChange: (Boolean) -> Unit = { _ -> },
     initialValue: String? = null,
-    initialIsExpense: Boolean = true
+    initialIsExpense: Boolean = true,
+    onConfirmed: () -> Unit = {}
 ) {
     // 输入的原始字符串 (例如 "100+20*3")
     var inputString by remember { mutableStateOf("") }
@@ -570,6 +628,8 @@ fun AmountCalculatorInput(
                         inputString = result // 将输入框内容替换为计算结果
                         onConfirmResult(result) // 将最终结果传给父层
                         calculatedResult = null // 重置预览
+                        // 通知上层一次确认动作（用于触发刷新）
+                        onConfirmed()
                     }
                     defaultKeyboardAction(ImeAction.Next)
                 }
@@ -797,7 +857,8 @@ private fun TagOneSelect(
 @Composable
 fun DualActionSheets(
     show: Boolean,
-    onDismissAll: () -> Unit
+    onDismissAll: () -> Unit,
+    onConfirmed: () -> Unit = {}
 ) {
     if (!show) return
     // 管理第二层具体类型
@@ -809,7 +870,14 @@ fun DualActionSheets(
             onSelect = { current = it }
         )
 
-        NestedSheetType.Asset -> AssetInputSheet(onDismiss = onDismissAll)
-        NestedSheetType.Bookkeeping -> BookkeepingSheet(onDismiss = onDismissAll)
+        NestedSheetType.Asset -> AssetInputSheet(
+            onDismiss = onDismissAll,
+            onConfirmed = onConfirmed
+        )
+
+        NestedSheetType.Bookkeeping -> BookkeepingSheet(
+            onDismiss = onDismissAll,
+            onConfirmed = onConfirmed
+        )
     }
 }

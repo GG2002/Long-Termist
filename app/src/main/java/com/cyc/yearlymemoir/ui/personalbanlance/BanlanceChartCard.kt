@@ -74,6 +74,7 @@ import ir.ehsannarmani.compose_charts.models.LabelHelperProperties
 import ir.ehsannarmani.compose_charts.models.LabelProperties
 import ir.ehsannarmani.compose_charts.models.Line
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -125,6 +126,7 @@ class ChartCardViewModel(application: Application) : AndroidViewModel(applicatio
                 Log.e("余额图表", "how do?", e)
                 _balanceChartData.value = emptyList() // 或设置一个错误状态
             } finally {
+                delay(500)
                 _isLoading.value = false
             }
         }
@@ -306,7 +308,7 @@ fun BanlanceChartCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp),
+                        .height(180.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()

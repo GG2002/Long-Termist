@@ -81,6 +81,7 @@ import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.WX_ENABLED
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.YSF_ENABLED
 import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.ZFB_ENABLED
+import com.cyc.yearlymemoir.ui.personalbanlance.getTodayString
 import com.cyc.yearlymemoir.venassists.GetBalanceStep
 import com.cyc.yearlymemoir.venassists.GetTodayBalanceStepImpl
 import com.ven.assists.AssistsCore
@@ -93,6 +94,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import kotlin.math.abs
 
 
@@ -276,12 +278,12 @@ class AutoCollectBalanceViewModel(application: Application) : AndroidViewModel(a
         for (ch in supported) {
             val source = ch.displayName
             val list = withContext(Dispatchers.IO) { model.getBalancesBySource(source) }
-            val today = getTodayString()
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            val today = LocalDate.now().format(formatter)
             var ensured = list
             if (list.none { it.recordDate == today }) {
-                val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
                 val nearest =
-                    list.maxByOrNull { java.time.LocalDate.parse(it.recordDate, formatter) }
+                    list.maxByOrNull { LocalDate.parse(it.recordDate, formatter) }
                 val defaultBalance = nearest?.balance ?: 1.0
                 withContext(Dispatchers.IO) {
                     model.upsertBalance(
@@ -1023,9 +1025,4 @@ private fun BalanceHistorySheet(
             }
         }
     }
-}
-
-private fun getTodayString(): String {
-    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    return java.time.LocalDate.now().format(formatter)
 }

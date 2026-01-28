@@ -6,6 +6,11 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.os.Environment
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,30 +20,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -50,7 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,7 +66,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.data.local.db.TmpFinanceDataBase
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
+import com.cyc.yearlymemoir.domain.model.TransactionRecord
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -68,6 +77,18 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+
+// 底部导航数据结构：标题、图标、点击事件（由父组件传入，写死即可，方便后续扩展）
+data class NavItem(
+    val title: String,
+    val icon: ImageVector,
+    val isSelected: () -> Boolean,
+    val onClick: () -> Unit,
+)
+
+// 页签枚举，避免使用易出错的下标
+enum class BottomTab { BILL, CENTER, ASSET }
 
 
 class PersonalBalanceViewModel(application: Application) : AndroidViewModel(application) {
@@ -91,9 +112,14 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
             val balances = try {
                 model.getBalancesByDate(today)
             } catch (e: Exception) {
-                emptyList<com.cyc.yearlymemoir.domain.model.BalanceRecord>()
+                emptyList()
             }
-            val total = balances.sumOf { it.balance }
+            // 加上 Finance Asset 的最新总额
+            val assetTotal = runCatching {
+                TmpFinanceDataBase.get(MainApplication.instance).financeAssetDao()
+                    .getLatestTotalAmount()
+            }.getOrElse { 0.0 }
+            val total = balances.sumOf { it.balance } + assetTotal
             _allBalance.value = total
             _lastUpdated.value = ds.getLong("last_update_time")
         }
@@ -109,54 +135,29 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun importBalancesFromText(input: String, onDone: () -> Unit = {}) {
-        viewModelScope.launch {
-            // Each line: source,date,balance
-            val lines = input.lines()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-            for (line in lines) {
-                val parts = line.split(",")
-                Log.e("i", parts.toString())
-                if (parts.size >= 3) {
-                    val source = parts[0].trim()
-                    val date = parts[1].trim()
-                    val balanceStr = parts[2].trim()
-                    val balance = balanceStr.toDoubleOrNull()
-                    if (balance != null) {
-                        try {
-                            model.upsertBalance(
-                                BalanceRecord(
-                                    sourceType = source,
-                                    recordDate = date,
-                                    balance = balance
-                                )
-                            )
-                        } catch (e: Exception) {
-                            // ignore a single bad insert
-                            Log.e("i", "$source $date $balance $e")
-                        }
-                    }
-                }
-            }
-            computeAllBalance()
-            onDone()
-        }
-    }
-
     private fun getDownloadsFile(): File {
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         return File(dir, "LongTermistBalance.txt")
     }
 
-    fun exportBalancesToFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+    private fun getDownloadsTransactionsFile(): File {
+        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return File(dir, "LongTermistTransactions.txt")
+    }
+
+    private fun getDownloadsTagsFile(): File {
+        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return File(dir, "LongTermistTags.txt")
+    }
+
+    fun exportDataToFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 // Fetch all balances; if repository has only by date, we may need a method to get all
                 val all = try {
                     model.getAllBalances()
-                } catch (e: Exception) {
-                    emptyList<BalanceRecord>()
+                } catch (_: Exception) {
+                    emptyList()
                 }
                 val content = all.joinToString(separator = "\n") { r ->
                     "${r.sourceType},${r.recordDate},${r.balance}"
@@ -164,6 +165,27 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
                 val file = getDownloadsFile()
                 file.parentFile?.mkdirs()
                 file.writeText(content)
+
+                // 额外导出：所有 transactions（舍去 id）到单独文件
+                val transactions = try {
+                    model.getAllTransactionsDesc()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                val txContent = transactions.joinToString(separator = "\n") { t ->
+                    // amount,tag,remark,record_date（不含 id）
+                    "${t.amount},${t.tag},${t.remark},${t.recordDate}"
+                }
+                val txFile = getDownloadsTransactionsFile()
+                txFile.parentFile?.mkdirs()
+                txFile.writeText(txContent)
+
+                // 额外导出：所有 tags（DataStore 里的反引号拼接字符串）到单独文件
+                val rawTags = ds.getString("custom_tags") ?: ""
+                val tagsFile = getDownloadsTagsFile()
+                tagsFile.parentFile?.mkdirs()
+                tagsFile.writeText(rawTags)
+
                 onSuccess()
             } catch (e: IOException) {
                 onError("写入失败：${e.message}")
@@ -173,18 +195,89 @@ class PersonalBalanceViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun importBalancesFromFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+    fun importDataFromFile(onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val file = getDownloadsFile()
-                if (!file.exists()) {
-                    onError("文件不存在：${file.absolutePath}")
+                // 导入 balances
+                val baFile = getDownloadsFile()
+                if (!baFile.exists()) {
+                    onError("文件不存在：${baFile.absolutePath}")
                     return@launch
                 }
-                val text = file.readText()
-                importBalancesFromText(text) {
-                    onSuccess()
+                val baText = baFile.readText()
+                // Each line: source,date,balance
+                var lines = baText.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                for (line in lines) {
+                    val parts = line.split(",")
+                    if (parts.size >= 3) {
+                        val source = parts[0].trim()
+                        val date = parts[1].trim()
+                        val balanceStr = parts[2].trim()
+                        val balance = balanceStr.toDoubleOrNull()
+                        if (balance != null) {
+                            try {
+                                model.upsertBalance(
+                                    BalanceRecord(
+                                        sourceType = source,
+                                        recordDate = date,
+                                        balance = balance
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                // ignore a single bad insert
+                                Log.e("i", "$source $date $balance $e")
+                            }
+                        }
+                    }
                 }
+
+                // 导入 transactions
+                val txFile = getDownloadsTransactionsFile()
+                if (!txFile.exists()) {
+                    onError("文件不存在：${txFile.absolutePath}")
+                    return@launch
+                }
+                val txText = txFile.readText()
+                // 每行 -> amount,tag,remark,record_date
+                lines = txText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                for (line in lines) {
+                    val parts = line.split(",")
+                    if (parts.size >= 4) {
+                        val amount = parts[0].trim().toDoubleOrNull()
+                        val tag = parts[1].trim()
+                        val remark = parts[2].trim()
+                        val recordDate = parts[3].trim()
+                        if (amount != null) {
+                            try {
+                                model.upsertTransaction(
+                                    TransactionRecord(
+                                        id = 0,
+                                        amount = amount,
+                                        tag = tag,
+                                        remark = remark,
+                                        recordDate = recordDate
+                                    )
+                                )
+                            } catch (_: Exception) {
+                                // ignore single bad row
+                            }
+                        }
+                    }
+                }
+
+                // 导入 tags（独立文件）
+                val tagsFile = getDownloadsTagsFile()
+                if (tagsFile.exists()) {
+                    val raw = tagsFile.readText()
+                    // 直接写回 DataStore 原始反引号拼接字符串
+                    ds.putString("custom_tags", raw)
+                }
+
+                // 完成后刷新
+                computeAllBalance()
+                onSuccess()
             } catch (e: IOException) {
                 onError("读取失败：${e.message}")
             } catch (e: Exception) {
@@ -207,9 +300,6 @@ fun PersonalBalanceScreen(
     val refreshTick by viewModel.refreshTick.collectAsStateWithLifecycle()
 
     var menuExpanded by remember { mutableStateOf(false) }
-    var showImportSheet by remember { mutableStateOf(false) }
-    var importText by remember { mutableStateOf("") }
-    var showDualSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -256,22 +346,14 @@ fun PersonalBalanceScreen(
                                 onDismissRequest = { menuExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("导入") },
-                                    onClick = {
-                                        menuExpanded = false
-                                        showImportSheet = true
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
                                     text = { Text("导出到文件") },
                                     onClick = {
                                         menuExpanded = false
-                                        viewModel.exportBalancesToFile(
+                                        viewModel.exportDataToFile(
                                             onSuccess = {
                                                 viewModel.refreshAll()
                                             },
-                                            onError = { msg ->
+                                            onError = {
                                                 viewModel.refreshAll()
                                             }
                                         )
@@ -281,11 +363,11 @@ fun PersonalBalanceScreen(
                                     text = { Text("从文件导入") },
                                     onClick = {
                                         menuExpanded = false
-                                        viewModel.importBalancesFromFile(
+                                        viewModel.importDataFromFile(
                                             onSuccess = {
                                                 viewModel.refreshAll()
                                             },
-                                            onError = { msg ->
+                                            onError = {
                                                 viewModel.refreshAll()
                                             }
                                         )
@@ -300,6 +382,8 @@ fun PersonalBalanceScreen(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         val scrollState = rememberScrollState()
+        // 页面选择用枚举，避免下标耦合
+        var selectedTab by remember { mutableStateOf(BottomTab.BILL) }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -312,19 +396,28 @@ fun PersonalBalanceScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            LedgerChartCard()
-            Spacer(Modifier.height(12.dp))
+            when (selectedTab) {
+                BottomTab.BILL -> { // 账单页
+                    LedgerChartCard(refreshTick = refreshTick)
+                    Spacer(Modifier.height(12.dp))
+                    BanlanceChartCard(refreshTick = refreshTick)
+                }
 
-            BanlanceChartCard(refreshTick = refreshTick)
-            Spacer(Modifier.height(12.dp))
+                BottomTab.ASSET -> { // 资产页
+                    AutoCollectBalanceCard(
+                        refreshAllBalanceCallBack = { viewModel.refreshAll() },
+                        refreshTick = refreshTick
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    FinanceAssetCard(refreshTick = refreshTick)
+                }
 
-            AutoCollectBalanceCard(
-                refreshAllBalanceCallBack = { viewModel.refreshAll() },
-                refreshTick = refreshTick
-            )
-            Spacer(Modifier.height(12.dp))
+                BottomTab.CENTER -> {
+                    // 中间按钮或其他索引暂不显示内容
+                }
+            }
 
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(108.dp))
         }
 
         Box(
@@ -332,75 +425,200 @@ fun PersonalBalanceScreen(
                 .fillMaxSize(),
             contentAlignment = Alignment.BottomCenter
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 36.dp)
-                    .clip(RoundedCornerShape(24.dp))
-            ) {
-                // 圆形 + 号按钮
-                FloatingActionButton(
-                    onClick = { showDualSheet = true },
-                    shape = CircleShape,
-                    containerColor = colorScheme.primary,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = "添加",
-                        tint = Color.White
-                    )
-                }
-            }
-        }
-    }
-
-    // 统一的双层 Sheet 组件
-    DualActionSheets(
-        show = showDualSheet,
-        onDismissAll = { showDualSheet = false }
-    )
-
-    if (showImportSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showImportSheet = false },
-            dragHandle = null
-        ) {
-            // Nearly full-screen: use a large height but keep some margin
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "批量导入余额（每行：来源，日期 (yyyy-MM-dd),余额）",
-                    style = typography.titleMedium
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = importText,
-                    onValueChange = { importText = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(450.dp),
-                    placeholder = { Text("例如：\n微信，2026-01-04,1289649.56\n支付宝，2026-01-04,21540.0") },
-                    maxLines = 20
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = { showImportSheet = false }) { Text("取消") }
-                    Spacer(Modifier.height(0.dp))
-                    Button(onClick = {
-                        viewModel.importBalancesFromText(importText) {
-                            showImportSheet = false
-                            importText = ""
+            val haptic = LocalHapticFeedback.current
+            val navItems = remember(selectedTab) {
+                listOf(
+                    NavItem(
+                        title = "账单",
+                        icon = Icons.Default.Home,
+                        isSelected = { selectedTab == BottomTab.BILL },
+                        onClick = {
+                            // 防抖
+                            if (selectedTab != BottomTab.BILL) {
+                                selectedTab = BottomTab.BILL
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            }
                         }
-                    }) { Text("导入") }
-                }
-                Spacer(Modifier.height(16.dp))
+                    ),
+                    // 中间按钮事件不需要考虑，这里占位：不触发页面切换
+                    NavItem(
+                        title = "中心",
+                        icon = Icons.Default.Add,
+                        isSelected = { selectedTab == BottomTab.CENTER },
+                        onClick = { /* no-op */ }
+                    ),
+                    NavItem(
+                        title = "资产",
+                        icon = Icons.Default.ShoppingCart,
+                        isSelected = { selectedTab == BottomTab.ASSET },
+                        onClick = {
+                            if (selectedTab != BottomTab.ASSET) {
+                                selectedTab = BottomTab.ASSET
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            }
+                        }
+                    ),
+                )
+            }
+            Box {
+                WatchStyleBottomBar(
+                    items = navItems,
+                    onAnyActionConfirmed = { viewModel.refreshAll() }
+                )
             }
         }
     }
 }
 
+
+@Composable
+fun WatchStyleBottomBar(
+    items: List<NavItem>,
+    onAnyActionConfirmed: () -> Unit = {}
+) {
+    // 位置大小
+    val bottomHeight = 40
+    // 尺寸配置
+    val barHeight = 60.dp        // 两侧长条的高度
+    val navIconSize = 24.dp      // 侧边导航图标大小
+    val fabSize = 48.dp          // 中间大按钮的大小 (直径)
+    val fabIconSize = 28.dp      // 中间图标大小
+    val barWidth = 220.dp        // 总宽度
+
+    // 颜色配置
+    val barColor = colorScheme.surface.copy(alpha = 0.7f)
+    val fabColor = colorScheme.secondary
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp), // 给容器足够的高度来容纳突出的按钮
+        contentAlignment = Alignment.BottomCenter
+    ) {
+
+        // -------------------------------------------------
+        // 1. 底部的胶囊长条 (Background Bar)
+        // -------------------------------------------------
+        val tmp = Modifier
+            .padding(bottom = bottomHeight.dp)
+            .width(barWidth)
+            .height(barHeight)
+            .shadow(elevation = 10.dp, shape = CircleShape, spotColor = Color.Black)
+            .background(barColor, shape = CircleShape)
+        Box(
+            modifier = if (!isSystemInDarkTheme()) tmp else tmp
+                .border(
+                    width = 1.dp,
+                    color = Color.White, shape = CircleShape
+                )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 20.dp)
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                items.getOrNull(0)?.onClick?.invoke()
+                            }
+                        },
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    val leftItem = items.getOrNull(0)
+                    NavIcon(
+                        icon = leftItem?.icon ?: Icons.Default.Home,
+                        text = leftItem?.title ?: "账单",
+                        isSelected = leftItem?.isSelected?.invoke() ?: false,
+                        size = navIconSize
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(fabSize))
+
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 20.dp)
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                items.getOrNull(2)?.onClick?.invoke()
+                            }
+                        },
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    val rightItem = items.getOrNull(2)
+                    NavIcon(
+                        icon = rightItem?.icon ?: Icons.Default.ShoppingCart,
+                        text = rightItem?.title ?: "资产",
+                        isSelected = rightItem?.isSelected?.invoke() ?: false,
+                        size = navIconSize
+                    )
+                }
+            }
+        }
+
+        // 中间的大圆形按钮 (Floating Action Button)
+        val haptic = LocalHapticFeedback.current
+        var showDualSheet by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .padding(bottom = bottomHeight.dp + (barHeight - fabSize) / 2)
+                .size(fabSize)
+                .shadow(
+                    elevation = 12.dp,
+                    shape = CircleShape,
+                    spotColor = fabColor.copy(alpha = 0.5f)
+                )
+                .background(fabColor, CircleShape)
+                .clip(CircleShape)
+                .clickable {
+                    showDualSheet = true
+                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Center Action",
+                tint = colorScheme.onPrimary,
+                modifier = Modifier.size(fabIconSize)
+            )
+        }
+        DualActionSheets(
+            show = showDualSheet,
+            onDismissAll = { showDualSheet = false },
+            onConfirmed = {
+                // 记一笔等操作完成后，通知父层刷新
+                onAnyActionConfirmed()
+            }
+        )
+    }
+}
+
+// 辅助组件：导航图标
+@Composable
+fun NavIcon(
+    icon: ImageVector,
+    text: String,
+    isSelected: Boolean,
+    size: androidx.compose.ui.unit.Dp,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isSelected) colorScheme.primary else colorScheme.onSurface,
+            modifier = Modifier.size(size)
+        )
+        Text(
+            text, style = typography.labelSmall.copy(
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) colorScheme.primary else colorScheme.onSurface,
+            )
+        )
+    }
+}

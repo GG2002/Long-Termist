@@ -20,6 +20,7 @@ import androidx.window.layout.WindowMetrics
 import androidx.window.layout.WindowMetricsCalculator
 import com.cyc.yearlymemoir.ui.HomeScreen
 import com.cyc.yearlymemoir.ui.TestPreview
+import com.cyc.yearlymemoir.ui.personalbanlance.FinanceAssetListScreen
 import com.cyc.yearlymemoir.ui.personalbanlance.PersonalBalanceScreen
 import com.cyc.yearlymemoir.ui.personalbanlance.TransactionListScreen
 import com.cyc.yearlymemoir.ui.settings.PermissionScreen
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
             navController = rememberNavController()
 
             var startRoute = "HomeScreen"
-            startRoute = "PersonalBalanceScreen"
+//            startRoute = "PersonalBalanceScreen"
 //            startRoute = "TransactionList"
 //            startRoute = "YearlyCalendar"
 //            startRoute = "PermissionScreen"
@@ -87,6 +88,13 @@ class MainActivity : ComponentActivity() {
                     composable("PermissionScreen") { PermissionScreen() }
                     composable("YearlyCalendar") { YearlyCalendar() }
                     composable("PersonalBalanceScreen") { PersonalBalanceScreen() }
+                    composable("FinanceAssetList") {
+                        FinanceAssetListScreen(
+                            onBack = { navController.popBackStack() },
+                            onEditAsset = { /* TODO: navigate to edit if needed */ },
+                            onDeleteAsset = { /* TODO: delete hook */ }
+                        )
+                    }
                     composable("TransactionList") {
                         TransactionListScreen(onBack = { navController.popBackStack() })
                     }

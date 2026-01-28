@@ -38,11 +38,6 @@ abstract class BaseBalanceFlow(protected val flowCtx: FlowContext) {
         }
     }
 
-    protected fun getTodayString(): String {
-        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
-        return java.time.LocalDate.now().format(formatter)
-    }
-
     protected suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T {
         return suspendCancellableCoroutine { cont ->
             addOnCompleteListener { task ->

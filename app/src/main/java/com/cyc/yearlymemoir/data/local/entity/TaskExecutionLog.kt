@@ -1,4 +1,4 @@
-package com.cyc.yearlymemoir.data
+package com.cyc.yearlymemoir.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

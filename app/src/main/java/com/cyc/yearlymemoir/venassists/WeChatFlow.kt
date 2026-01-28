@@ -9,6 +9,7 @@ import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
 import com.cyc.yearlymemoir.services.OverlayConfirmManager
 import com.cyc.yearlymemoir.services.WXFloatingWindowService
+import com.cyc.yearlymemoir.ui.personalbanlance.getTodayString
 import com.cyc.yearlymemoir.utils.LogRecorder
 import com.google.mlkit.vision.common.InputImage
 import com.ven.assists.AssistsCore

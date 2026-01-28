@@ -3,6 +3,7 @@ package com.cyc.yearlymemoir.venassists
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.model.UniversalDate
 import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
+import com.cyc.yearlymemoir.ui.personalbanlance.getTodayString
 import com.cyc.yearlymemoir.utils.LogRecorder
 import com.ven.assists.AssistsCore
 import com.ven.assists.AssistsCore.click

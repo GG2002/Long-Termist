@@ -415,17 +415,23 @@ fun CustomInputTable(
     // 切换日期或“每年往复”时，仅重算 inputValue，不改动 temporaryInputValue
     LaunchedEffect(universalDate, isRepeatAnnuallyChecked, selectedField) {
         val field = MainApplication.repository.getFieldByName(selectedField.fieldName)
-        val detail = if (isRepeatAnnuallyChecked) {
-            val mdStr = universalDate.getRawMDDate().toString()
-            MainApplication.repository.getYearlyDetailByFieldAndMdDate(
-                field!!.fieldId,
-                mdStr
-            )?.detail ?: ""
-        } else {
-            MainApplication.repository.getDetailByFieldAndUniversalDate(
-                field!!.fieldId,
-                universalDate
-            )?.detail ?: ""
+        val detail = when {
+            field == null -> ""
+
+            isRepeatAnnuallyChecked -> {
+                val mdStr = universalDate.getRawMDDate().toString()
+                MainApplication.repository.getYearlyDetailByFieldAndMdDate(
+                    field.fieldId,
+                    mdStr
+                )?.detail ?: ""
+            }
+
+            else -> {
+                MainApplication.repository.getDetailByFieldAndUniversalDate(
+                    field.fieldId,
+                    universalDate
+                )?.detail ?: ""
+            }
         }
 
         val temp = reminderFormState.temporaryInputValue

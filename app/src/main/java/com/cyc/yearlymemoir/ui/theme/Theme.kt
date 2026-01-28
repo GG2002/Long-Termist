@@ -44,7 +44,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun YearlyMemoirTheme(
-    darkTheme: Boolean = !isSystemInDarkTheme(),
+    darkTheme: Boolean = isSystemInDarkTheme(),
     // 默认开启动态颜色，这是最佳实践
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit

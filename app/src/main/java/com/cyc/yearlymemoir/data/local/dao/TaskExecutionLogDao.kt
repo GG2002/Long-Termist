@@ -1,9 +1,10 @@
-package com.cyc.yearlymemoir.data
+package com.cyc.yearlymemoir.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.cyc.yearlymemoir.data.local.entity.TaskExecutionLog
 
 @Dao
 interface TaskExecutionLogDao {

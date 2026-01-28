@@ -40,7 +40,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyc.yearlymemoir.MainActivity.Companion.navController
 import com.cyc.yearlymemoir.MainApplication
+import com.cyc.yearlymemoir.data.local.db.TmpFinanceDataBase
+import com.cyc.yearlymemoir.MainApplication.Companion.ds
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
+import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
+import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.WX_ENABLED
+import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.YSF_ENABLED
+import com.cyc.yearlymemoir.domain.repository.PreferencesKeys.ZFB_ENABLED
 import ir.ehsannarmani.compose_charts.LineChart
 import ir.ehsannarmani.compose_charts.extensions.format
 import ir.ehsannarmani.compose_charts.models.DrawStyle
@@ -79,9 +85,50 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
     private val _balanceChart = MutableStateFlow<List<Pair<String, Double>>>(emptyList())
     val balanceChart: StateFlow<List<Pair<String, Double>>> = _balanceChart
 
+
+    fun getSupportedApp(): List<BalanceChannelType> {
+        // 创建支持的应用列表
+        var supportedApps = listOf<BalanceChannelType>()
+        if (ds.getString(YSF_ENABLED)?.toBoolean() == true) {
+            supportedApps = supportedApps + listOf(BalanceChannelType.YSF)
+        }
+        if (ds.getString(WX_ENABLED)?.toBoolean() == true) {
+            supportedApps = supportedApps + listOf(BalanceChannelType.WX)
+        }
+        if (ds.getString(ZFB_ENABLED)?.toBoolean() == true) {
+            supportedApps = supportedApps + listOf(BalanceChannelType.ZFB)
+        }
+        return supportedApps
+    }
+
+    private suspend fun ensureTodayForAllSupported() {
+        val supported = getSupportedApp()
+        for (ch in supported) {
+            val source = ch.displayName
+            val list = withContext(Dispatchers.IO) { repo.getBalancesBySource(source) }
+            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            val today = LocalDate.now().format(formatter)
+            if (list.none { it.recordDate == today }) {
+                val nearest =
+                    list.maxByOrNull { LocalDate.parse(it.recordDate, formatter) }
+                val defaultBalance = nearest?.balance ?: 1.0
+                withContext(Dispatchers.IO) {
+                    repo.upsertBalance(
+                        BalanceRecord(
+                            sourceType = source,
+                            recordDate = today,
+                            balance = defaultBalance
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     fun loadAll() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
+                ensureTodayForAllSupported()
                 computeTodayTotalBalance()
                 computeMonthIncomeExpenseWithAutoAdjustment()
                 computeRecentDailyBalanceChart()
@@ -92,7 +139,11 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
     private suspend fun computeTodayTotalBalance() {
         val today = LocalDate.now().format(dateFormatter)
         val balances = runCatching { repo.getBalancesByDate(today) }.getOrElse { emptyList() }
-        _totalBalance.value = balances.sumOf { it.balance }
+        // 将 Finance Asset 最新总额并入今日总余额
+        val assetTotal = runCatching {
+            TmpFinanceDataBase.get(MainApplication.instance).financeAssetDao().getLatestTotalAmount()
+        }.getOrElse { 0.0 }
+        _totalBalance.value = balances.sumOf { it.balance } + assetTotal
     }
 
     /**
@@ -102,12 +153,11 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
         val month = YearMonth.now()
         val today = LocalDate.now()
 
+        // 今日余额总和，computeTodayTotalBalance 算过了
+        val todayBalanceSum = _totalBalance.value
+
         // 本月基线余额
         val monthBaselineBalanceSum = findMonthBaselineBalanceSum(month, today)
-
-        // 今日余额总和
-        val todayBalances = runCatching { repo.getBalancesByDate(today.format(dateFormatter)) }.getOrElse { emptyList() }
-        val todayBalanceSum = todayBalances.sumOf { it.balance }
 
         // 本月余额变动
         val balanceDelta = if (monthBaselineBalanceSum != null) {
@@ -115,8 +165,9 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
         } else 0.0
 
         // 当月交易记录
-        val monthTransactions = runCatching { repo.getAllTransactionsDesc() }.getOrElse { emptyList() }
-            .filter { isSameMonth(it.recordDate, month) }
+        val monthTransactions =
+            runCatching { repo.getAllTransactionsDesc() }.getOrElse { emptyList() }
+                .filter { isSameMonth(it.recordDate, month) }
 
         val incomeSum = monthTransactions.filter { it.amount > 0 }.sumOf { it.amount }
         val expenseSum = monthTransactions.filter { it.amount <= 0 }.sumOf { it.amount } // 负数或 0
@@ -159,7 +210,8 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
         var firstInMonth: Double? = null
 
         repeat(366) {
-            val balances = runCatching { repo.getBalancesByDate(cursor.format(dateFormatter)) }.getOrElse { emptyList() }
+            val balances =
+                runCatching { repo.getBalancesByDate(cursor.format(dateFormatter)) }.getOrElse { emptyList() }
             val hasData = balances.isNotEmpty()
             val isInMonth = YearMonth.from(cursor) == month
 

@@ -6,56 +6,35 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cyc.yearlymemoir.data.local.dao.DetailDao
-import com.cyc.yearlymemoir.data.local.dao.BalanceDao
-import com.cyc.yearlymemoir.data.local.dao.TransactionDao
 import com.cyc.yearlymemoir.data.local.dao.FieldDao
 import com.cyc.yearlymemoir.data.local.dao.GroupDao
 import com.cyc.yearlymemoir.data.local.dao.YearlyDetailDao
 import com.cyc.yearlymemoir.data.local.entity.DetailEntity
-import com.cyc.yearlymemoir.data.local.entity.BalanceEntity
-import com.cyc.yearlymemoir.data.local.entity.TransactionEntity
 import com.cyc.yearlymemoir.data.local.entity.FieldEntity
 import com.cyc.yearlymemoir.data.local.entity.GroupEntity
 import com.cyc.yearlymemoir.data.local.entity.YearlyDetailEntity
-import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_NUM
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_STR
 import com.cyc.yearlymemoir.domain.model.FIELD_TYPE_TEXT
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/**
- * 应用程序的 Room 数据库主类。
- *
- * @Database 注解标记了这个类作为 Room 数据库。
- * - entities: 列出所有需要被数据库管理的实体类。
- * - version: 数据库的版本号。每次修改表结构（增删改字段、表等），都必须增加版本号。
- * - exportSchema: 是否导出数据库结构到 JSON 文件。建议设为 false，除非你需要用于复杂的迁移分析。
- */
 @Database(
     entities = [
         DetailEntity::class,
         YearlyDetailEntity::class,
         FieldEntity::class,
-        GroupEntity::class,
-        BalanceEntity::class,
-        TransactionEntity::class
+        GroupEntity::class
     ],
     version = 1,
     exportSchema = false
 )
-abstract class AppDatabase : RoomDatabase() {
-
-    // 为每个 DAO 提供一个抽象的 "getter" 方法。
-    // Room 会在后台自动实现这些方法。
+abstract class CoreDatabase : RoomDatabase() {
     abstract fun detailDao(): DetailDao
     abstract fun yearlyDetailDao(): YearlyDetailDao
     abstract fun fieldDao(): FieldDao
     abstract fun groupDao(): GroupDao
-    abstract fun balanceDao(): BalanceDao
-    abstract fun transactionDao(): TransactionDao
 
-    // 1. 定义一个数据库回调
-    private class AppDatabaseCallback(
+    private class CoreDataDatabaseCallback(
         private val scope: CoroutineScope // 接收一个协程作用域
     ) : Callback() {
 
@@ -70,14 +49,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // 2. 定义一个挂起函数来执行插入操作
         suspend fun populateDatabase(details: DetailDao, fields: FieldDao, groups: GroupDao) {
             // 清理旧数据（可选）
             details.deleteAll()
             fields.deleteAll()
             groups.deleteAll()
 
-            // 插入你的预设数据
+            // 插入预设数据
             val groupEntities = listOf(
                 GroupEntity(groupId = 1, groupName = "default", groupParentId = 0),
                 GroupEntity(groupId = 3, groupName = "动物朋友", groupParentId = 0),
@@ -110,32 +88,18 @@ abstract class AppDatabase : RoomDatabase() {
     }
 
 
-    /**
-     * 使用伴生对象 (Companion Object) 来实现单例模式。
-     * 这可以防止在同一时间打开多个数据库实例，避免资源浪费和潜在的并发问题。
-     */
     companion object {
-        // @Volatile 注解确保 INSTANCE 变量的写入对所有线程立即可见。
         @Volatile
-        private var INSTANCE: AppDatabase? = null
+        private var INSTANCE: CoreDatabase? = null
 
-        /**
-         * 获取数据库的单例实例。
-         *
-         * @param context 应用程序上下文，用于创建数据库。
-         * @return AppDatabase 的单例实例。
-         */
-        fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
-            // 使用 synchronized 块确保线程安全。
-            // 如果 INSTANCE 不为 null，则直接返回它。
-            // 如果为 null，则创建一个新的数据库实例。
+        fun getInstance(context: Context, scope: CoroutineScope): CoreDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    AppDatabase::class.java,
-                    "yearlmemoir.db" // 这是数据库在设备上存储的文件名
+                    CoreDatabase::class.java,
+                    "yearlmemoir_core.db" // 核心数据数据库文件名
                 )
-                    .addCallback(AppDatabaseCallback(scope))
+                    .addCallback(CoreDataDatabaseCallback(scope))
                     // 如果需要处理数据库版本升级，可以在这里添加迁移策略。
                     // .addMigrations(MIGRATION_1_2, ...)
                     .build()

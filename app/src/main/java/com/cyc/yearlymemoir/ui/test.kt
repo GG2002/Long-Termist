@@ -329,7 +329,7 @@ fun TestPreview(modifier: Modifier = Modifier) {
         VoronoiGlass(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(400.dp),
+                .height(240.dp),
             blocks = sample,
             animationSafeInset = 16.dp
         )

@@ -39,8 +39,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cyc.yearlymemoir.MainApplication
-import com.cyc.yearlymemoir.data.AppDatabase
-import com.cyc.yearlymemoir.data.TaskExecutionLog
+import com.cyc.yearlymemoir.data.local.db.DebugInfoDatabase
+import com.cyc.yearlymemoir.data.local.entity.TaskExecutionLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,7 +55,7 @@ fun TaskHistoryScreen(tag: String) {
     var selected by remember { mutableStateOf<TaskExecutionLog?>(null) }
 
     LaunchedEffect(tag) {
-        val dao = AppDatabase.get(context).taskExecutionLogDao()
+        val dao = DebugInfoDatabase.get(context).taskExecutionLogDao()
         logs = withContext(Dispatchers.IO) { dao.getByTag(tag) }
     }
     val dateFormater = SimpleDateFormat(
@@ -84,7 +84,7 @@ fun TaskHistoryScreen(tag: String) {
                     Text(text = tag, style = typography.bodySmall)
                 }
                 IconButton(onClick = {
-                    val dao = AppDatabase.get(context).taskExecutionLogDao()
+                    val dao = DebugInfoDatabase.get(context).taskExecutionLogDao()
                     // 清空当前标签的历史并刷新
                     scope.launch(Dispatchers.IO) {
                         dao.deleteByTag(tag)
