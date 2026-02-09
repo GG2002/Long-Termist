@@ -918,12 +918,12 @@ fun balanceItemLongPressHandler(
     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
     // 特殊处理微信的悬浮窗权限
-    if (channelType == BalanceChannelType.WX) {
-        if (!Settings.canDrawOverlays(context)) {
-            MainActivity.navController.navigate("PermissionScreen")
-            return
-        }
-    }
+//    if (channelType == BalanceChannelType.WX) {
+//        if (!Settings.canDrawOverlays(context)) {
+//            MainActivity.navController.navigate("PermissionScreen")
+//            return
+//        }
+//    }
 
     // 通用的无障碍权限检查
     if (!AssistsCore.isAccessibilityServiceEnabled()) {

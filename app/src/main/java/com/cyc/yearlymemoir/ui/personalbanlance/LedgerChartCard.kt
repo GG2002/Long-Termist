@@ -181,7 +181,12 @@ class MonthlyLedgerViewModel() : ViewModel() {
                 if (hasData) {
                     // 记录“本月最早的一条记录”。因为我们在倒序回溯，
                     // 当离开本月之前最后一次更新到的 firstInMonth 就是最早的一条。
-                    firstInMonth = balances.sumOf { it.balance }
+                    val assetTotalAtCursor = runCatching {
+                        TmpFinanceDataBase.get(MainApplication.instance)
+                            .financeAssetDao()
+                            .getLatestTotalAmountByDate(cursor.format(dateFormatter))
+                    }.getOrElse { 0.0 }
+                    firstInMonth = balances.sumOf { it.balance } + assetTotalAtCursor
                 }
             } else {
                 // 已经离开本月
@@ -191,7 +196,12 @@ class MonthlyLedgerViewModel() : ViewModel() {
                 }
                 if (hasData) {
                     // 本月内未找到任何数据，则返回最靠近本月的上一条记录
-                    return balances.sumOf { it.balance }
+                    val assetTotalAtCursor = runCatching {
+                        TmpFinanceDataBase.get(MainApplication.instance)
+                            .financeAssetDao()
+                            .getLatestTotalAmountByDate(cursor.format(dateFormatter))
+                    }.getOrElse { 0.0 }
+                    return balances.sumOf { it.balance } + assetTotalAtCursor
                 }
             }
 
@@ -199,7 +209,7 @@ class MonthlyLedgerViewModel() : ViewModel() {
         }
 
         // 回溯一年后：如果本月内找到过，则返回；否则返回 null
-        return firstInMonth
+    return firstInMonth
     }
 
     private fun isSameMonth(recordDate: String, target: YearMonth): Boolean {

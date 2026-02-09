@@ -1,14 +1,9 @@
 package com.cyc.yearlymemoir.venassists
 
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
-import android.provider.Settings
-import com.cyc.yearlymemoir.MainActivity
 import com.cyc.yearlymemoir.domain.model.BalanceRecord
 import com.cyc.yearlymemoir.domain.repository.BalanceChannelType
-import com.cyc.yearlymemoir.services.OverlayConfirmManager
-import com.cyc.yearlymemoir.services.WXFloatingWindowService
 import com.cyc.yearlymemoir.ui.personalbanlance.getTodayString
 import com.cyc.yearlymemoir.utils.LogRecorder
 import com.google.mlkit.vision.common.InputImage
@@ -18,7 +13,7 @@ import com.ven.assists.stepper.StepCollector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlin.math.min
+import java.lang.Thread.sleep
 
 class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
     override fun register(collector: StepCollector, nextStepId: Int) {
@@ -37,19 +32,20 @@ class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
             .next(GetBalanceStep.ENTER_WX_我的_TAB.ordinal) {
                 // 1. 处理右下角区域 -> 寻找“我”
                 val ds = flowCtx.ds
+                val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                var centerXY = Pair(0, 0)
                 if (ds.getInt("wx_我_x") > 0) {
                     withContext(Dispatchers.Main) {
                         val globalX = ds.getInt("wx_我_x")
                         val globalY = ds.getInt("wx_我_y")
                         LogRecorder.i("微信自动化", "获取缓存“我”坐标：($globalX, $globalY)")
-                        AssistsCore.gestureClick(globalX.toFloat(), globalY.toFloat())
+                        centerXY = Pair(globalX, globalY)
                     }
                 } else {
-                    val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
                     val width = screenshot.width
                     val height = screenshot.height
 
-                    val bottomRightRect = Rect(width / 2, height / 2, width, height)
+                    val bottomRightRect = Rect(width / 2, height * 4 / 5, width, height)
                     val bottomRightCropped = Bitmap.createBitmap(
                         screenshot,
                         bottomRightRect.left,
@@ -58,28 +54,61 @@ class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
                         bottomRightRect.height()
                     )
 
-                    val (x, y) = findAndClickText(bottomRightCropped, "我", bottomRightRect)
-                    ds.putInt("wx_我_x", x)
-                    ds.putInt("wx_我_y", y)
+                    val (regions, _) = ImageProcessing.getNormalizedRegions(bottomRightCropped)
+                    val ptNorm =
+                        ImageProcessing.strategyLastTwoCenter(regions) ?: return@next Step.get(
+                            nextStepId,
+                            delay = 0
+                        )
+                    centerXY = ImageProcessing.mapToGlobal(ptNorm, bottomRightRect)
+                    ds.putInt("wx_我_x", centerXY.first)
+                    ds.putInt("wx_我_y", centerXY.second)
                 }
+
+                // 比对点击前后的区域是否变化
+                val halfW = 50
+                val halfH = 30
+                val beforeRegion = cropAroundCenter(screenshot, centerXY, halfW, halfH)
+                var changed = false
+                for (i in 0 until 4) {
+                    val finalXY = ImageProcessing.randomClickXY(centerXY, halfW to halfH)
+                    val (x, y) = finalXY
+                    val tt = withContext(Dispatchers.Main) {
+                        AssistsCore.gestureClick(x, y)
+                    }
+                    LogRecorder.i(
+                        "自动化获取余额",
+                        "点击目标：“我”，坐标：($x, $y) $tt"
+                    )
+
+                    delay(500)
+                    val nextScreenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                    val afterRegion = cropAroundCenter(nextScreenshot, centerXY, 50, 30)
+                    if (!ImageProcessing.areBitmapsSame(beforeRegion, afterRegion)) {
+                        changed = true
+                        break
+                    }
+                }
+
                 Step.get(GetBalanceStep.ENTER_WX_服务_TAB.ordinal)
             }
             .next(GetBalanceStep.ENTER_WX_服务_TAB.ordinal) {
                 // 2. 处理左上角区域 -> 寻找“服务”
                 val ds = flowCtx.ds
+                val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                var centerXY = Pair(0, 0)
                 if (ds.getInt("wx_服务_x") > 0) {
                     withContext(Dispatchers.Main) {
                         val globalX = ds.getInt("wx_服务_x")
                         val globalY = ds.getInt("wx_服务_y")
                         LogRecorder.i("微信自动化", "获取缓存“服务”坐标：($globalX, $globalY)")
-                        AssistsCore.gestureClick(globalX.toFloat(), globalY.toFloat())
+                        centerXY = Pair(globalX, globalY)
                     }
                 } else {
-                    val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
                     val width = screenshot.width
                     val height = screenshot.height
 
-                    val topLeftRect = Rect(0, 0, width / 2, height / 2)
+                    val topLeftRect = Rect(0, height / 5, width / 2, height * 3 / 5)
                     val topLeftCropped = Bitmap.createBitmap(
                         screenshot,
                         topLeftRect.left,
@@ -88,28 +117,63 @@ class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
                         topLeftRect.height()
                     )
 
-                    val (x, y) = findAndClickText(topLeftCropped, "服务", topLeftRect)
-                    ds.putInt("wx_服务_x", x)
-                    ds.putInt("wx_服务_y", y)
+                    val (regions, _) = ImageProcessing.getNormalizedRegions(topLeftCropped)
+                    val ptNorm =
+                        ImageProcessing.strategyFirstColRight(regions) ?: return@next Step.get(
+                            nextStepId,
+                            delay = 0
+                        )
+                    centerXY = ImageProcessing.mapToGlobal(ptNorm, topLeftRect)
+                    ds.putInt("wx_服务_x", centerXY.first)
+                    ds.putInt("wx_服务_y", centerXY.second)
+                }
+
+                // 比对点击前后的区域是否变化
+                val halfW = 50
+                val halfH = 30
+                val beforeRegion = cropAroundCenter(screenshot, centerXY, halfW, halfH)
+                var changed = false
+                for (i in 0 until 4) {
+                    val finalXY = ImageProcessing.randomClickXY(
+                        centerXY,
+                        halfW to halfH
+                    )
+                    val (x, y) = finalXY
+                    val tt = withContext(Dispatchers.Main) {
+                        AssistsCore.gestureClick(x, y)
+                    }
+                    LogRecorder.i(
+                        "自动化获取余额",
+                        "点击目标：“服务”，坐标：($x, $y) $tt"
+                    )
+
+                    delay(500)
+                    val nextScreenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                    val afterRegion = cropAroundCenter(nextScreenshot, centerXY, halfW, halfH)
+                    if (!ImageProcessing.areBitmapsSame(beforeRegion, afterRegion)) {
+                        changed = true
+                        break
+                    }
                 }
                 Step.get(GetBalanceStep.ENTER_WX_钱包_TAB.ordinal)
             }
             .next(GetBalanceStep.ENTER_WX_钱包_TAB.ordinal) {
                 // 3. 处理右上角区域 -> 寻找“钱包”
                 val ds = flowCtx.ds
+                val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                var centerXY = Pair(0, 0)
                 if (ds.getInt("wx_钱包_x") > 0) {
                     withContext(Dispatchers.Main) {
                         val globalX = ds.getInt("wx_钱包_x")
                         val globalY = ds.getInt("wx_钱包_y")
                         LogRecorder.i("微信自动化", "获取缓存“钱包”坐标：($globalX, $globalY)")
-                        AssistsCore.gestureClick(globalX.toFloat(), globalY.toFloat())
+                        centerXY = Pair(globalX, globalY)
                     }
                 } else {
-                    val screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
                     val width = screenshot.width
                     val height = screenshot.height
 
-                    val topRightRect = Rect(width / 2, 0, width, height / 2)
+                    val topRightRect = Rect(width / 2, height / 10, width, height / 4)
                     val topRightCropped = Bitmap.createBitmap(
                         screenshot,
                         topRightRect.left,
@@ -118,189 +182,115 @@ class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
                         topRightRect.height()
                     )
 
-                    val (x, y) = findAndClickText(topRightCropped, "钱包", topRightRect)
-                    ds.putInt("wx_钱包_x", x)
-                    ds.putInt("wx_钱包_y", y)
+                    val (regions, _) = ImageProcessing.getNormalizedRegions(topRightCropped)
+                    val ptNorm =
+                        ImageProcessing.strategyFirstColRight(regions) ?: return@next Step.get(
+                            nextStepId,
+                            delay = 0
+                        )
+                    centerXY = ImageProcessing.mapToGlobal(ptNorm, topRightRect)
+                    ds.putInt("wx_钱包_x", centerXY.first)
+                    ds.putInt("wx_钱包_y", centerXY.second)
+                }
+
+                // 比对点击前后的区域是否变化
+                val halfW = 60
+                val halfH = 40
+                val beforeRegion = cropAroundCenter(screenshot, centerXY, halfW, halfH)
+                var changed = false
+                for (i in 0 until 4) {
+                    val finalXY = ImageProcessing.randomClickXY(
+                        centerXY,
+                        halfW to halfH
+                    )
+                    val (x, y) = finalXY
+                    val tt = withContext(Dispatchers.Main) {
+                        AssistsCore.gestureClick(x, y)
+                    }
+                    LogRecorder.i(
+                        "自动化获取余额",
+                        "点击目标：“钱包”，坐标：($x, $y) $tt"
+                    )
+
+                    delay(500)
+                    val nextScreenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
+                    val afterRegion = cropAroundCenter(nextScreenshot, centerXY, halfW, halfH)
+                    if (!ImageProcessing.areBitmapsSame(beforeRegion, afterRegion)) {
+                        changed = true
+                        break
+                    }
                 }
                 Step.get(GetBalanceStep.GET_WX_BALANCE.ordinal)
             }
             .next(GetBalanceStep.GET_WX_BALANCE.ordinal) {
                 var screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
 
-                // 上半部分图片坐标
-                val topHalfRect =
-                    Rect(screenshot.width / 10, 0, screenshot.width, screenshot.height / 2)
+                // 上 1/3 部分，右 1/2 部分图片坐标
+                val width = screenshot.width
+                val height = screenshot.height
+                val topHalfRect = Rect(width / 2, height / 10, width, height / 3)
 
-                // 截图确保“零钱”与“零钱通”显示完全
-                var qianPosition: Rect? = null
-                var tongPosition: Rect? = null
-                var topHalfBitmap: Bitmap
+                // 截图确保“零钱”与“零钱通”的余额数字显示完全
+                val ds = flowCtx.ds
+                var regions: List<ImageProcessing.NormRect>
                 var retryNumber = 3
+                var topHalfBitmap: Bitmap
                 do {
-                    // Step 1: 截取上半部分图片
                     topHalfBitmap = Bitmap.createBitmap(
                         screenshot,
                         topHalfRect.left,
                         topHalfRect.top,
-                        topHalfRect.width() - (10..150).random(),
+                        topHalfRect.width() - (10..100).random(),
                         topHalfRect.height() + (10..100).random()
                     )
 
-                    // Step 2: OCR 上半部分，寻找 "零钱" 和 "零钱通"
-                    val 零钱通文字区域图片 = if (flowCtx.ds.getInt("wx_零钱_left") == 0) {
-                        topHalfBitmap
-                    } else {
-                        val tmp = Rect(
-                            screenshot.width / 10,
-                            flowCtx.ds.getInt("wx_零钱_top"),
-                            screenshot.width * 3 / 10,
-                            flowCtx.ds.getInt("wx_零钱_bottom")
-                        )
-                        Bitmap.createBitmap(
-                            screenshot,
-                            tmp.left,
-                            tmp.top,
-                            tmp.width() - (10..20).random(),
-                            tmp.height() + (10..100).random()
-                        )
-                    }
-                    val image = InputImage.fromBitmap(零钱通文字区域图片, 0)
-                    val result = recognizer.process(image).await()
-
-                    for (block in result.textBlocks) {
-                        for (line in block.lines) {
-                            for (element in line.elements) {
-                                println(element.text)
-                                when {
-                                    element.text.contains("零钱通") -> {
-                                        tongPosition = element.boundingBox
-                                        LogRecorder.i("微信自动化", "tongPosition: $tongPosition")
-                                        continue
-                                    }
-
-                                    element.text.contains("零钱") -> {
-                                        qianPosition = element.boundingBox
-                                        LogRecorder.i("微信自动化", "qianPosition: $qianPosition")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (qianPosition != null && tongPosition != null) {
+                    val (tmpRegions, _) = ImageProcessing.getNormalizedRegions(topHalfBitmap, saveIntermediates = true)
+                    regions = tmpRegions
+                    if (regions.size == 2) {
                         break
                     }
                     retryNumber--
-                    LogRecorder.i("微信自动化", "未找到“零钱”或“零钱通”，剩余 $retryNumber 次重试")
-                    delay(3 * 1000)
+                    LogRecorder.i(
+                        "微信自动化",
+                        "“零钱”、“零钱通”未显示完全，剩余 $retryNumber 次重试"
+                    )
+                    delay(5 * 1000)
                     screenshot = AssistsCore.takeScreenshot() ?: return@next Step.none
                 } while (retryNumber > 0)
 
-                if (qianPosition == null || tongPosition == null) {
-                    LogRecorder.i("微信自动化", "无法找到“零钱”或“零钱通”，请检查代码逻辑或微信版本")
-                    return@next Step.get(nextStepId)
-                }
-
-                // Step 3: 截取该区域的右半部分 -> 零钱余额图片坐标
-                val rightPartRect: Rect = if (flowCtx.ds.getInt("wx_零钱_left") == 0) {
-                    val tmp = Rect(
-                        (topHalfRect.width() / 2f).toInt(),
-                        qianPosition!!.top,
-                        topHalfRect.width() * 19 / 20 - (5 * MainActivity.metrics.density).toInt(),
-                        tongPosition!!.bottom
+                var balance = 0.0
+                for (region in regions) {
+                    // 处理每个区域
+                    val cropRect = Rect(
+                        (region.x * topHalfBitmap.width).toInt(),
+                        (region.y * topHalfBitmap.height).toInt(),
+                        ((region.x + region.w) * topHalfBitmap.width).toInt(),
+                        ((region.y + region.h) * topHalfBitmap.height).toInt()
                     )
-                    if (Settings.canDrawOverlays(flowCtx.context)) {
-                        startFloatingService(
-                            flowCtx.context, Rect(
-                                tmp.left + screenshot.width / 10,
-                                tmp.top,
-                                tmp.right + screenshot.width / 10,
-                                tmp.bottom
-                            )
-                        )
-                        LogRecorder.d("微信自动化", "余额位置弹窗确认。")
-                        val confirmed = OverlayConfirmManager.show(
-                            context = flowCtx.context.applicationContext,
-                            title = "零钱与零钱通位置确认",
-                            message = "请确认识别的区域是否完整覆盖零钱与零钱通的余额数字，完整覆盖则点击确认，否则点击取消进行重试"
-                        )
-                        if (confirmed) {
-                            LogRecorder.d("ConfirmTest", "用户已确认，执行下一步！")
-                            flowCtx.ds.putInt("wx_零钱_left", tmp.left)
-                            flowCtx.ds.putInt("wx_零钱_top", tmp.top)
-                            flowCtx.ds.putInt("wx_零钱_right", tmp.right)
-                            flowCtx.ds.putInt("wx_零钱_bottom", tmp.bottom)
-                        } else {
-                            LogRecorder.d("ConfirmTest", "用户已取消，重新识图。")
-                            stopFloatingService(flowCtx.context)
-                            return@next Step.repeat
+                    // 进行裁剪
+                    val croppedBitmap = Bitmap.createBitmap(
+                        topHalfBitmap,
+                        cropRect.left,
+                        cropRect.top,
+                        cropRect.width(),
+                        cropRect.height()
+                    )
+                    // OCR 提取数字
+                    val finalImage = InputImage.fromBitmap(croppedBitmap, 0)
+                    val finalResult = recognizer.process(finalImage).await()
+                    val extractedNumbers = finalResult.textBlocks
+                        .flatMap { it.lines }
+                        .flatMap { it.elements }
+                        .mapNotNull { element ->
+                            val pattern = Regex("\\b(\\d+\\.?\\d*)\\b")
+                            val match = pattern.find(element.text)
+                            match?.groupValues?.getOrNull(1)?.toDouble()
                         }
-                        stopFloatingService(flowCtx.context)
-                    }
-                    tmp
-                } else {
-                    Rect(
-                        flowCtx.ds.getInt("wx_零钱_left"),
-                        flowCtx.ds.getInt("wx_零钱_top"),
-                        flowCtx.ds.getInt("wx_零钱_right"),
-                        flowCtx.ds.getInt("wx_零钱_bottom"),
-                    )
+                    balance += extractedNumbers.sum()
                 }
-
-                // Ocr Test Time Augmentation
-                val leftRandomOffset = (100..150).random()
-                val topRandomOffset = -(0..30).random()
-                println(rightPartRect)
-                println(
-                    min(
-                        rightPartRect.right,
-                        topHalfBitmap.width
-                    ) - (rightPartRect.left + leftRandomOffset) - 1
-                )
-                val processedBitmap = Bitmap.createBitmap(
-                    topHalfBitmap,
-                    rightPartRect.left + leftRandomOffset,
-                    rightPartRect.top + topRandomOffset,
-                    min(
-                        rightPartRect.right,
-                        topHalfBitmap.width
-                    ) - (rightPartRect.left + leftRandomOffset) - 1,
-                    rightPartRect.height() - topRandomOffset
-                )
-
-                // Step 4: OCR 提取数字
-                val finalImage = InputImage.fromBitmap(processedBitmap, 0)
-                val finalResult = recognizer.process(finalImage).await()
-
-                fun extractBalance(input: String): Double? {
-                    val pattern = Regex("\\b(\\d+\\.?\\d*)\\b")
-                    val match = pattern.find(input)
-                    return match?.groupValues?.getOrNull(1)?.toDouble()
-                }
-
-                val extractedNumbers = finalResult.textBlocks
-                    .flatMap { it.lines }
-                    .flatMap { it.elements }
-                    .mapNotNull { element -> extractBalance(element.text) }
-
-                var balance = when (extractedNumbers.isEmpty()) {
-                    false -> {
-                        LogRecorder.i(
-                            "微信自动化",
-                            "微信识别到余额：${extractedNumbers.joinToString(", ")}"
-                        )
-                        extractedNumbers.sum()
-                    }
-
-                    true -> {
-                        LogRecorder.i("微信自动化", "未识别到余额数字")
-                        0.0
-                    }
-                }
-                balance = "%.2f".format(balance).toDouble()
 
                 LogRecorder.i("微信自动化", "微信余额：$balance")
-                flowCtx.ds.updateTodayBalance(BalanceChannelType.WX)
+                ds.updateTodayBalance(BalanceChannelType.WX)
                 flowCtx.model.upsertBalance(
                     BalanceRecord(
                         sourceType = "微信",
@@ -313,53 +303,19 @@ class WeChatFlow(flowCtx: FlowContext) : BaseBalanceFlow(flowCtx) {
             }
     }
 
-    // OCR 查找点击逻辑（迁移自 GetTodayBalanceStepImpl）
-    private suspend fun findAndClickText(
-        cropped: Bitmap,
-        targetText: String,
-        screenRegion: Rect
-    ): Pair<Int, Int> {
-        val image = InputImage.fromBitmap(cropped, 0)
-        val result = withContext(Dispatchers.IO) {
-            recognizer.process(image).await()
-        }
-        for (block in result.textBlocks) {
-            for (line in block.lines) {
-                for (element in line.elements) {
-                    if (element.text.contains(targetText, ignoreCase = true)) {
-                        val bounds = element.boundingBox ?: continue
-                        val centerX = bounds.centerX()
-                        val centerY = bounds.centerY()
-
-                        val globalX = screenRegion.left + centerX
-                        val globalY = screenRegion.top + centerY
-
-                        withContext(Dispatchers.Main) {
-                            AssistsCore.gestureClick(globalX.toFloat(), globalY.toFloat())
-                            LogRecorder.i(
-                                "自动化获取余额",
-                                "找到目标：“$targetText”，点击坐标：($globalX, $globalY)"
-                            )
-                        }
-                        return Pair(globalX, globalY)
-                    }
-                }
-            }
-        }
-        LogRecorder.i("自动化获取余额", "未在区域找到目标：“$targetText”")
-        return Pair(0, 0)
-    }
-
-    private fun startFloatingService(ctx: android.content.Context, rect: Rect) {
-        if (Settings.canDrawOverlays(ctx)) {
-            val intent = Intent(ctx, WXFloatingWindowService::class.java).apply {
-                putExtra(WXFloatingWindowService.KEY_RECT, rect)
-            }
-            ctx.startService(intent)
-        }
-    }
-
-    private fun stopFloatingService(ctx: android.content.Context) {
-        ctx.stopService(Intent(ctx, WXFloatingWindowService::class.java))
+    private fun cropAroundCenter(
+        bitmap: Bitmap,
+        center: Pair<Int, Int>,
+        halfWidth: Int,
+        halfHeight: Int
+    ): Bitmap {
+        val (cx, cy) = center
+        val left = (cx - halfWidth).coerceAtLeast(0)
+        val top = (cy - halfHeight).coerceAtLeast(0)
+        val right = (cx + halfWidth).coerceAtMost(bitmap.width)
+        val bottom = (cy + halfHeight).coerceAtMost(bitmap.height)
+        val width = right - left
+        val height = bottom - top
+        return Bitmap.createBitmap(bitmap, left, top, width, height)
     }
 }

@@ -217,12 +217,30 @@ class AssetSummaryViewModel(application: Application) : AndroidViewModel(applica
 
             if (isInMonth) {
                 if (hasData) {
-                    // 倒序回溯时，离开本月之前最新一次更新到的 firstInMonth 即为本月最早记录的余额和
-                    firstInMonth = balances.sumOf { it.balance }
+                    // 记录“本月最早的一条记录”。因为我们在倒序回溯，
+                    // 当离开本月之前最后一次更新到的 firstInMonth 就是最早的一条。
+                    val assetTotalAtCursor = runCatching {
+                        TmpFinanceDataBase.get(MainApplication.instance)
+                            .financeAssetDao()
+                            .getLatestTotalAmountByDate(cursor.format(dateFormatter))
+                    }.getOrElse { 0.0 }
+                    firstInMonth = balances.sumOf { it.balance } + assetTotalAtCursor
                 }
             } else {
-                if (firstInMonth != null) return firstInMonth
-                if (hasData) return balances.sumOf { it.balance }
+                // 已经离开本月
+                if (firstInMonth != null) {
+                    // 如果在离开本月前已经在本月内找到过数据，则返回该“本月最早记录”
+                    return firstInMonth
+                }
+                if (hasData) {
+                    // 本月内未找到任何数据，则返回最靠近本月的上一条记录
+                    val assetTotalAtCursor = runCatching {
+                        TmpFinanceDataBase.get(MainApplication.instance)
+                            .financeAssetDao()
+                            .getLatestTotalAmountByDate(cursor.format(dateFormatter))
+                    }.getOrElse { 0.0 }
+                    return balances.sumOf { it.balance } + assetTotalAtCursor
+                }
             }
             cursor = cursor.minusDays(1)
         }

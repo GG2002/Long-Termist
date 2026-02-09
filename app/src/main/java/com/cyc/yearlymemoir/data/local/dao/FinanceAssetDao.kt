@@ -59,6 +59,24 @@ interface FinanceAssetDao {
         """
     )
     suspend fun getLatestTotalAmount(): Double
+
+    /**
+     * 按指定日期（含当日）汇总 FinanceAsset：
+     * 对每个资产名取该日期之前（含当日）的最新一条记录，再求和。
+     */
+    @Query(
+        """
+        SELECT IFNULL(SUM(fa.asset_amount), 0)
+        FROM finance_asset fa
+        JOIN (
+          SELECT asset_name, MAX(record_date) AS max_date
+          FROM finance_asset
+          WHERE record_date <= :date
+          GROUP BY asset_name
+        ) t ON fa.asset_name = t.asset_name AND fa.record_date = t.max_date
+        """
+    )
+    suspend fun getLatestTotalAmountByDate(date: String): Double
 }
 
 data class LatestAssetAmount(

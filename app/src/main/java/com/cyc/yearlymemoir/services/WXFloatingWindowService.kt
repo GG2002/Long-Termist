@@ -56,7 +56,6 @@ class WXFloatingWindowService : Service() {
         params.y = rect.top - statusBarHeight
         params.width = rect.width()
         params.height = rect.height()
-        println("WXFloating params: $params")
 
         if (floatingView == null) {
             // --- 核心改动在这里 ---

@@ -319,7 +319,7 @@ class UniversalDate(
                 val date = LocalDate.of(solar.year, solar.month, solar.day)
                 val weekOrder = (date.dayOfMonth - 1) / 7 + 1
                 Pair(
-                    solar.lunar.year, UniversalMDDateType.MonthWeekday(
+                    date.year, UniversalMDDateType.MonthWeekday(
                         month = date.monthValue,
                         weekOrder = weekOrder,
                         weekday = date.dayOfWeek

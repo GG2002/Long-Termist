@@ -116,18 +116,18 @@ fun PermissionScreen() {
                     }
                 }
             ),
-            PermissionInfo(
-                title = "悬浮窗权限",
-                description = "用于在其他应用上层显示悬浮窗口，例如实时显示重要信息或提供快捷操作。",
-                isGranted = { Settings.canDrawOverlays(it) },
-                onRequest = {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
-                    )
-                    settingsLauncher.launch(intent)
-                }
-            ),
+//            PermissionInfo(
+//                title = "悬浮窗权限",
+//                description = "用于在其他应用上层显示悬浮窗口，例如实时显示重要信息或提供快捷操作。",
+//                isGranted = { Settings.canDrawOverlays(it) },
+//                onRequest = {
+//                    val intent = Intent(
+//                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+//                        Uri.parse("package:${context.packageName}")
+//                    )
+//                    settingsLauncher.launch(intent)
+//                }
+//            ),
             PermissionInfo(
                 title = "无障碍服务",
                 description = "核心功能依赖，用于自动化操作、监听特定事件，为您提供便利。",

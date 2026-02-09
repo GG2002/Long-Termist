@@ -108,7 +108,6 @@ class ChartCardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun firstLoadBalanceDetails() {
         viewModelScope.launch {
-            println(UniversalDate.today())
             _isLoading.value = true
             try {
                 // 改为读取所有 BalanceRecord，并按天汇总总余额
